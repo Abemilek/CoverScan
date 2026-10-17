@@ -120,7 +120,7 @@ fun App(vm: MainViewModel = viewModel()) {
                         if (docs.isEmpty()) {
                             Toast.makeText(context, "Aún no hay documentos guardados", Toast.LENGTH_SHORT).show()
                         } else {
-                            val nombre = "portadas_" +
+                            val nombre = "coverscan_" +
                                 SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date()) + ".json"
                             exportar.launch(nombre)
                         }

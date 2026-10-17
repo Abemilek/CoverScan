@@ -104,19 +104,19 @@ Android requires the release APK to be signed. The project reads the credentials
 If you are starting from scratch, create your keystore and its credentials file (change the example password):
 
 ```bash
-keytool -genkeypair -keystore portadas-release.keystore -alias portadas \
+keytool -genkeypair -keystore coverscan-release.keystore -alias coverscan \
   -keyalg RSA -keysize 2048 -validity 10950
 ```
 
 ```properties
 # keystore.properties
-storeFile=portadas-release.keystore
+storeFile=coverscan-release.keystore
 storePassword=YOUR_PASSWORD
-keyAlias=portadas
+keyAlias=coverscan
 keyPassword=YOUR_PASSWORD
 ```
 
-⚠️ Keep `portadas-release.keystore` and `keystore.properties` safe: future updates are signed with them. If you lose them, the phone will not be able to update the installed app (you would have to uninstall it, losing the app's internal data).
+⚠️ Keep `coverscan-release.keystore` and `keystore.properties` safe: future updates are signed with them. If you lose them, the phone will not be able to update the installed app (you would have to uninstall it, losing the app's internal data).
 
 ### 3. Build
 
@@ -182,6 +182,6 @@ app/src/main/java/com/example/portadas/
   Model.kt            Documento class
 
 keystore.properties          signing credentials (ignored by git)
-portadas-release.keystore    signing keystore (ignored by git)
+coverscan-release.keystore   signing keystore (ignored by git)
 gradlew / gradlew.bat        Gradle wrapper
 ```
