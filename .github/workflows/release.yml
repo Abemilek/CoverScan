@@ -44,8 +44,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          cp app/build/outputs/apk/release/app-release.apk "CoverScan-${GITHUB_REF_NAME}.apk"
           gh release create "${GITHUB_REF_NAME}" \
-            "app/build/outputs/apk/release/app-release.apk#CoverScan-${GITHUB_REF_NAME}.apk" \
+            "CoverScan-${GITHUB_REF_NAME}.apk" \
             --title "CoverScan ${GITHUB_REF_NAME}" \
             --notes-file .github/release-notes.md \
             --generate-notes
