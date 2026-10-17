@@ -23,6 +23,21 @@
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" />
 </p>
 
+## Table of contents
+
+- [JSON format](#json-format)
+- [Building the APK (universal release)](#building-the-apk-universal-release)
+  - [Requirements](#requirements)
+  - [1. Set up the SDK (once)](#1-set-up-the-sdk-once)
+  - [2. Sign the release (once)](#2-sign-the-release-once)
+  - [3. Build](#3-build)
+  - [4. Install on the phone](#4-install-on-the-phone)
+  - [Alternative: Android Studio](#alternative-android-studio)
+- [Usage](#usage)
+- [Tuning field recognition](#tuning-field-recognition)
+- [Structure](#structure)
+- [License](#license)
+
 - **100% on-device OCR** (ML Kit, bundled model). The app **has no internet permission**.
 - Flow: **Capture** → the cover is read and split into fields → **editable preview** → **Save and continue** → … → **Export** (a single `.json`).
 - You can also import several photos you already took using **Gallery** (they are reviewed one by one).
