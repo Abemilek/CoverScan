@@ -20,8 +20,8 @@ android {
         applicationId = "com.example.portadas"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.1"
     }
 
     signingConfigs {
@@ -38,6 +38,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // El APK de release solo empaqueta ABIs de teléfonos reales (x86/x86_64 son solo
+            // para emuladores); debug conserva todas las ABIs para poder usar emuladores.
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
             if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }
