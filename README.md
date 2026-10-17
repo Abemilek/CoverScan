@@ -1,4 +1,21 @@
-# CoverScan (Portadas Scanner)
+# CoverScan
+
+<p align="center">
+  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png" width="160" alt="CoverScan app icon" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white" alt="Android 7.0+" />
+  <img src="https://img.shields.io/badge/Kotlin-1.9.24-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin 1.9.24" />
+  <img src="https://img.shields.io/badge/Jetpack%20Compose-BOM%202024.06.00-4285F4?logo=jetpackcompose&logoColor=white" alt="Jetpack Compose" />
+  <img src="https://img.shields.io/badge/Material-3-6750A4?logo=materialdesign&logoColor=white" alt="Material 3" />
+  <img src="https://img.shields.io/badge/Gradle-8.7-02303A?logo=gradle&logoColor=white" alt="Gradle 8.7" />
+  <img src="https://img.shields.io/badge/AGP-8.5.2-3DDC84?logo=androidstudio&logoColor=white" alt="Android Gradle Plugin 8.5.2" />
+  <img src="https://img.shields.io/badge/JDK-17%2B-ED8B00?logo=openjdk&logoColor=white" alt="JDK 17+" />
+  <img src="https://img.shields.io/badge/CameraX-1.3.4-34A853" alt="CameraX 1.3.4" />
+  <img src="https://img.shields.io/badge/ML%20Kit-16.0.1-4285F4?logo=google&logoColor=white" alt="ML Kit 16.0.1" />
+  <img src="https://img.shields.io/badge/OCR-100%25%20on--device-4CAF50" alt="100% on-device OCR" />
+</p>
 
 Android app to scan covers of theses, seminars, CDs and books, and save everything into **a single JSON file**. It works on any phone or emulator running Android 7.0 (API 24) or later.
 
