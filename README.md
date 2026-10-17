@@ -5,7 +5,7 @@
 <h1 align="center">CoverScan</h1>
 
 <p align="center">
-  <strong>Free-libre open source software</strong> to scan the covers of theses, seminars, CDs and books with 100% on-device OCR and save everything into a single JSON file.
+  <strong>Free-libre open source software to scan the covers of theses, seminars, CDs and books with 100% on-device OCR and save everything into a single JSON file.</strong>
 </p>
 
 <p align="center">
