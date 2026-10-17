@@ -46,6 +46,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun capturar(ic: ImageCapture, executor: Executor) {
         _ocr.update { it + 1 }
         ic.takePicture(executor, object : ImageCapture.OnImageCapturedCallback() {
+            @androidx.annotation.OptIn(markerClass = [ExperimentalGetImage::class])
             override fun onCaptureSuccess(image: ImageProxy) {
                 val media = image.image
                 if (media == null) {
