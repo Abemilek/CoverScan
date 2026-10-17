@@ -1,0 +1,32 @@
+# Gradle
+.gradle/
+build/
+
+# Local machine configuration (contains the SDK path)
+local.properties
+
+# IDEs
+.idea/
+*.iml
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Build outputs
+*.apk
+*.aab
+*.ap_
+
+# Release signing: never share the keystore or its credentials
+*.keystore
+*.jks
+keystore.properties
+
+# OS / misc
+.DS_Store
+Thumbs.db
+*.hprof
+
+# Local helper files (not part of the project)
+repo.txt
