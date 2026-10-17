@@ -1,7 +1,11 @@
-# CoverScan
-
 <p align="center">
   <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png" width="160" alt="CoverScan app icon" />
+</p>
+
+<h1 align="center">CoverScan</h1>
+
+<p align="center">
+  <strong>Free-libre open source software</strong> to scan the covers of theses, seminars, CDs and books with 100% on-device OCR and save everything into a single JSON file.
 </p>
 
 <p align="center">
@@ -18,8 +22,6 @@
   <img src="https://img.shields.io/badge/OCR-100%25%20on--device-4CAF50" alt="100% on-device OCR" />
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" />
 </p>
-
-Android app to scan covers of theses, seminars, CDs and books, and save everything into **a single JSON file**. It works on any phone running Android 7.0 (API 24) or later, and on emulators when built from source.
 
 - **100% on-device OCR** (ML Kit, bundled model). The app **has no internet permission**.
 - Flow: **Capture** → the cover is read and split into fields → **editable preview** → **Save and continue** → … → **Export** (a single `.json`).
