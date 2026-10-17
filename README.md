@@ -16,9 +16,10 @@
   <img src="https://img.shields.io/badge/CameraX-1.3.4-34A853" alt="CameraX 1.3.4" />
   <img src="https://img.shields.io/badge/ML%20Kit-16.0.1-4285F4?logo=google&logoColor=white" alt="ML Kit 16.0.1" />
   <img src="https://img.shields.io/badge/OCR-100%25%20on--device-4CAF50" alt="100% on-device OCR" />
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" />
 </p>
 
-Android app to scan covers of theses, seminars, CDs and books, and save everything into **a single JSON file**. It works on any phone or emulator running Android 7.0 (API 24) or later.
+Android app to scan covers of theses, seminars, CDs and books, and save everything into **a single JSON file**. It works on any phone running Android 7.0 (API 24) or later, and on emulators when built from source.
 
 - **100% on-device OCR** (ML Kit, bundled model). The app **has no internet permission**.
 - Flow: **Capture** → the cover is read and split into fields → **editable preview** → **Save and continue** → … → **Export** (a single `.json`).
@@ -59,7 +60,7 @@ The labels Autor/Alumno/Estudiante/Sustentante/Presentado por are all stored und
 
 ## Building the APK (universal release)
 
-The project produces **a single universal APK** that includes the native libraries for every architecture (arm64-v8a, armeabi-v7a, x86 and x86_64): the same file works on any phone or emulator, with no need to choose an architecture or generate several APKs.
+The project produces **a single universal APK**: the same file works on any phone, with no need to choose an architecture or generate several APKs. Release builds include the native libraries for every phone architecture (arm64-v8a and armeabi-v7a); the x86/x86_64 libraries (only useful for emulators) are excluded, keeping the APK around half the size (~26 MB instead of ~48 MB). Debug builds keep all four architectures for emulator testing.
 
 The instructions apply to Linux, macOS and Windows (the variant is only noted where the commands differ). Everything is downloaded as an official zip: no app stores, snaps or flatpaks.
 
@@ -186,3 +187,7 @@ keystore.properties          signing credentials (ignored by git)
 coverscan-release.keystore   signing keystore (ignored by git)
 gradlew / gradlew.bat        Gradle wrapper
 ```
+
+## License
+
+Released under the [MIT License](LICENSE).
