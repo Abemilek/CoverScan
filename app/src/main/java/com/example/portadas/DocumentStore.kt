@@ -1,33 +1,44 @@
 package com.example.portadas
 
 import android.content.Context
+import android.util.AtomicFile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.UUID
 
-/** Guarda todo en un único archivo JSON interno (se actualiza con cada documento guardado). */
+/**
+ * Guarda todo en un único archivo JSON interno (se actualiza con cada documento guardado).
+ * Usa AtomicFile: si la app se cierra a mitad de una escritura, se conserva la versión anterior.
+ */
 class DocumentStore(context: Context) {
-    private val archivo = File(context.filesDir, "documentos.json")
+    private val archivo = AtomicFile(File(context.filesDir, "documentos.json"))
+
+    /** true si al cargar se encontró un archivo ilegible (se renombró a documentos.corrupto.json). */
+    var archivoCorrupto = false
+        private set
 
     fun load(): List<Documento> {
-        if (!archivo.exists()) return emptyList()
+        if (!archivo.baseFile.exists()) return emptyList()
         return try {
-            fromJsonString(archivo.readText(Charsets.UTF_8))
+            fromJsonString(String(archivo.readFully(), Charsets.UTF_8))
         } catch (e: Exception) {
-            archivo.renameTo(File(archivo.parentFile, "documentos.corrupto.json"))
+            val base = archivo.baseFile
+            base.renameTo(File(base.parentFile, "documentos.corrupto.json"))
+            archivoCorrupto = true
             emptyList()
         }
     }
 
+    @Throws(Exception::class)
     fun save(docs: List<Documento>) {
-        val tmp = File(archivo.parentFile, "documentos.json.tmp")
-        tmp.writeText(toJsonString(docs), Charsets.UTF_8)
-        if (!tmp.renameTo(archivo)) {
-            archivo.delete()
-            tmp.renameTo(archivo)
+        val salida = archivo.startWrite()
+        try {
+            salida.write(toJsonString(docs).toByteArray(Charsets.UTF_8))
+            archivo.finishWrite(salida)
+        } catch (e: Exception) {
+            archivo.failWrite(salida)
+            throw e
         }
     }
 
@@ -35,7 +46,7 @@ class DocumentStore(context: Context) {
         fun toJsonString(docs: List<Documento>): String {
             val raiz = JSONObject()
             raiz.put("version", 1)
-            raiz.put("exportado_en", SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date()))
+            raiz.put("exportado_en", ahoraIso())
             raiz.put("total", docs.size)
             val arr = JSONArray()
             docs.forEach { arr.put(toJson(it)) }
@@ -72,7 +83,7 @@ class DocumentStore(context: Context) {
             if (o.isNull(k)) "" else o.optString(k, "")
 
         private fun fromJson(o: JSONObject) = Documento(
-            id = str(o, "id"),
+            id = str(o, "id").ifBlank { UUID.randomUUID().toString() },
             categoria = str(o, "categoria").ifBlank { "Otro" },
             tipoTrabajo = str(o, "tipo_trabajo"),
             titulo = str(o, "titulo"),
@@ -84,7 +95,7 @@ class DocumentStore(context: Context) {
             otros = lista(o.optJSONArray("otros")),
             textoCompleto = str(o, "texto_completo"),
             notas = str(o, "notas"),
-            escaneadoEn = str(o, "escaneado_en")
+            escaneadoEn = str(o, "escaneado_en").ifBlank { ahoraIso() }
         )
 
         private fun lista(a: JSONArray?): List<String> =

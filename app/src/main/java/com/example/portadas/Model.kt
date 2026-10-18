@@ -7,6 +7,9 @@ import java.util.UUID
 
 val CATEGORIAS = listOf("Tesis/Seminario", "Disco/CD", "Libro", "Otro")
 
+/** Fecha y hora local con zona horaria, p. ej. 2026-10-17T15:30:00-06:00 */
+fun ahoraIso(): String = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).format(Date())
+
 data class Documento(
     val id: String = UUID.randomUUID().toString(),
     val categoria: String = "Otro",
@@ -20,5 +23,5 @@ data class Documento(
     val otros: List<String> = emptyList(),
     val textoCompleto: String = "",
     val notas: String = "",
-    val escaneadoEn: String = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())
+    val escaneadoEn: String = ahoraIso()
 )

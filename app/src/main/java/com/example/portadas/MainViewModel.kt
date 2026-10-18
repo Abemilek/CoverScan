@@ -16,11 +16,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 import kotlin.math.abs
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val store = DocumentStore(app)
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+
+    /** Un solo hilo para el disco: las escrituras se hacen en orden y sin bloquear la interfaz. */
+    private val io = Executors.newSingleThreadExecutor()
 
     private val _docs = MutableStateFlow(store.load())
     val docs: StateFlow<List<Documento>> = _docs.asStateFlow()
@@ -35,10 +39,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _ocr = MutableStateFlow(0)
     val ocrEnCurso: StateFlow<Int> = _ocr.asStateFlow()
 
-    private val _mensaje = MutableStateFlow<String?>(null)
+    private val _mensaje = MutableStateFlow(
+        if (store.archivoCorrupto)
+            "El archivo interno estaba dañado; se guardó como documentos.corrupto.json"
+        else null
+    )
     val mensaje: StateFlow<String?> = _mensaje.asStateFlow()
 
     fun limpiarMensaje() { _mensaje.value = null }
+
+    override fun onCleared() {
+        io.shutdown() // deja terminar las escrituras pendientes
+        recognizer.close()
+    }
 
     // ---------- Captura ----------
 
@@ -123,10 +136,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- Guardado / edición ----------
 
+    /** Escribe el estado actual en disco (en segundo plano). Si falla, avisa en vez de cerrar la app. */
+    private fun persistir() {
+        val copia = _docs.value
+        io.execute {
+            try {
+                store.save(copia)
+            } catch (e: Exception) {
+                _mensaje.value = "No se pudo guardar en el teléfono: ${e.message}"
+            }
+        }
+    }
+
+    private fun normalizar(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
+
     fun guardarNuevo(d: Documento) {
+        val duplicado = d.titulo.isNotBlank() &&
+            _docs.value.any { normalizar(it.titulo) == normalizar(d.titulo) }
         _docs.update { listOf(d) + it }
-        store.save(_docs.value)
+        persistir()
         _cola.update { it.drop(1) }
+        if (duplicado) _mensaje.value = "Aviso: ya existía un documento con el mismo título (se guardó igual)"
     }
 
     fun descartarPrimero() { _cola.update { it.drop(1) } }
@@ -136,21 +166,32 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun guardarEdicion(d: Documento) {
         _docs.update { lista -> lista.map { if (it.id == d.id) d else it } }
-        store.save(_docs.value)
+        persistir()
         _editando.value = null
     }
 
     fun borrar(d: Documento) {
         _docs.update { lista -> lista.filter { it.id != d.id } }
-        store.save(_docs.value)
+        persistir()
     }
 
-    fun exportar(uri: Uri): Boolean = try {
-        getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
-            it.write(DocumentStore.toJsonString(_docs.value).toByteArray(Charsets.UTF_8))
+    /** Exporta en el orden en que se escanearon (el más antiguo primero). El resultado se avisa con un mensaje. */
+    fun exportar(uri: Uri) {
+        val copia = _docs.value.reversed()
+        io.execute {
+            val ok = try {
+                val salida = getApplication<Application>().contentResolver.openOutputStream(uri, "wt")
+                if (salida == null) {
+                    false
+                } else {
+                    salida.use { it.write(DocumentStore.toJsonString(copia).toByteArray(Charsets.UTF_8)) }
+                    true
+                }
+            } catch (e: Exception) {
+                false
+            }
+            _mensaje.value =
+                if (ok) "JSON guardado (${copia.size} documentos)" else "No se pudo guardar el archivo"
         }
-        true
-    } catch (e: Exception) {
-        false
     }
 }
