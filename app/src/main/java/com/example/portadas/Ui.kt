@@ -1,13 +1,20 @@
 package com.example.portadas
 
 import android.Manifest
+import android.util.Size
+import android.view.MotionEvent
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.clickable
@@ -42,6 +49,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,8 +75,10 @@ fun App(vm: MainViewModel = viewModel()) {
     val ocr by vm.ocrEnCurso.collectAsState()
     val mensaje by vm.mensaje.collectAsState()
 
-    var pantalla by remember { mutableStateOf(0) }
+    var pantalla by rememberSaveable { mutableStateOf(0) }
+    var linterna by rememberSaveable { mutableStateOf(false) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
+    var camara by remember { mutableStateOf<Camera?>(null) }
     var tienePermiso by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
@@ -83,14 +93,7 @@ fun App(vm: MainViewModel = viewModel()) {
         vm.procesarUris(uris)
     }
     val exportar = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) {
-            val ok = vm.exportar(uri)
-            Toast.makeText(
-                context,
-                if (ok) "JSON guardado (${docs.size} documentos)" else "No se pudo guardar el archivo",
-                Toast.LENGTH_LONG
-            ).show()
-        }
+        if (uri != null) vm.exportar(uri)
     }
 
     LaunchedEffect(Unit) {
@@ -133,7 +136,19 @@ fun App(vm: MainViewModel = viewModel()) {
                 Column(Modifier.weight(1f).fillMaxWidth()) {
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         if (tienePermiso) {
-                            CameraPreview(Modifier.fillMaxSize()) { imageCapture = it }
+                            CameraPreview(
+                                modifier = Modifier.fillMaxSize(),
+                                onReady = { captura, cam ->
+                                    imageCapture = captura
+                                    camara = cam
+                                    if (linterna) cam.cameraControl.enableTorch(true)
+                                },
+                                onRelease = {
+                                    imageCapture = null
+                                    camara = null
+                                },
+                                onError = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                            )
                         } else {
                             Column(
                                 Modifier.fillMaxSize().padding(24.dp),
@@ -163,6 +178,15 @@ fun App(vm: MainViewModel = viewModel()) {
                             modifier = Modifier.weight(2f)
                         ) { Text("Capturar") }
                         OutlinedButton({ galeria.launch("image/*") }, Modifier.weight(1f)) { Text("Galería") }
+                        if (camara?.cameraInfo?.hasFlashUnit() == true) {
+                            OutlinedButton(
+                                onClick = {
+                                    linterna = !linterna
+                                    camara?.cameraControl?.enableTorch(linterna)
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) { Text(if (linterna) "Luz: sí" else "Luz: no") }
+                        }
                     }
                 }
             } else {
@@ -200,30 +224,69 @@ fun App(vm: MainViewModel = viewModel()) {
 }
 
 @Composable
-fun CameraPreview(modifier: Modifier, onReady: (ImageCapture) -> Unit) {
+fun CameraPreview(
+    modifier: Modifier,
+    onReady: (ImageCapture, Camera) -> Unit,
+    onRelease: () -> Unit,
+    onError: (String) -> Unit
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val previewView = remember { PreviewView(context) }
+    var camara by remember { mutableStateOf<Camera?>(null) }
 
     LaunchedEffect(Unit) {
         val futuro = ProcessCameraProvider.getInstance(context)
         futuro.addListener({
-            val provider = futuro.get()
-            val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
-            val captura = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-                .build()
-            provider.unbindAll()
-            provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, captura)
-            onReady(captura)
+            try {
+                val provider = futuro.get()
+                val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+                // ML Kit no mejora con caracteres de más de ~24 px: ~12 MP bastan y el OCR va más rápido
+                val resolucion = ResolutionSelector.Builder()
+                    .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                    .setResolutionStrategy(
+                        ResolutionStrategy(Size(4032, 3024), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)
+                    )
+                    .build()
+                val captura = ImageCapture.Builder()
+                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                    .setResolutionSelector(resolucion)
+                    .build()
+                provider.unbindAll()
+                val cam = provider.bindToLifecycle(
+                    lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, captura
+                )
+                camara = cam
+                onReady(captura, cam)
+            } catch (e: Exception) {
+                onError("No se pudo iniciar la cámara: ${e.message}")
+            }
         }, ContextCompat.getMainExecutor(context))
     }
     DisposableEffect(Unit) {
         onDispose {
+            onRelease()
             runCatching { ProcessCameraProvider.getInstance(context).get().unbindAll() }
         }
     }
-    AndroidView({ previewView }, modifier)
+    AndroidView(
+        factory = {
+            previewView.apply {
+                // Tocar la vista previa enfoca en ese punto
+                setOnTouchListener { v, ev ->
+                    if (ev.action == MotionEvent.ACTION_UP) {
+                        camara?.let { c ->
+                            val punto = meteringPointFactory.createPoint(ev.x, ev.y)
+                            c.cameraControl.startFocusAndMetering(FocusMeteringAction.Builder(punto).build())
+                        }
+                        v.performClick()
+                    }
+                    true
+                }
+            }
+        },
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -275,17 +338,17 @@ fun RevisionDialog(
     onGuardar: (Documento) -> Unit,
     onCancelar: () -> Unit
 ) {
-    var categoria by remember(doc.id) { mutableStateOf(doc.categoria) }
-    var tipoTrabajo by remember(doc.id) { mutableStateOf(doc.tipoTrabajo) }
-    var tituloDoc by remember(doc.id) { mutableStateOf(doc.titulo) }
-    var autores by remember(doc.id) { mutableStateOf(doc.autores.joinToString("\n")) }
-    var tutores by remember(doc.id) { mutableStateOf(doc.tutores.joinToString("\n")) }
-    var institucion by remember(doc.id) { mutableStateOf(doc.institucion) }
-    var facultad by remember(doc.id) { mutableStateOf(doc.facultadArea) }
-    var fecha by remember(doc.id) { mutableStateOf(doc.fechaLugar) }
-    var otros by remember(doc.id) { mutableStateOf(doc.otros.joinToString("\n")) }
-    var notas by remember(doc.id) { mutableStateOf(doc.notas) }
-    var texto by remember(doc.id) { mutableStateOf(doc.textoCompleto) }
+    var categoria by rememberSaveable(doc.id) { mutableStateOf(doc.categoria) }
+    var tipoTrabajo by rememberSaveable(doc.id) { mutableStateOf(doc.tipoTrabajo) }
+    var tituloDoc by rememberSaveable(doc.id) { mutableStateOf(doc.titulo) }
+    var autores by rememberSaveable(doc.id) { mutableStateOf(doc.autores.joinToString("\n")) }
+    var tutores by rememberSaveable(doc.id) { mutableStateOf(doc.tutores.joinToString("\n")) }
+    var institucion by rememberSaveable(doc.id) { mutableStateOf(doc.institucion) }
+    var facultad by rememberSaveable(doc.id) { mutableStateOf(doc.facultadArea) }
+    var fecha by rememberSaveable(doc.id) { mutableStateOf(doc.fechaLugar) }
+    var otros by rememberSaveable(doc.id) { mutableStateOf(doc.otros.joinToString("\n")) }
+    var notas by rememberSaveable(doc.id) { mutableStateOf(doc.notas) }
+    var texto by rememberSaveable(doc.id) { mutableStateOf(doc.textoCompleto) }
 
     fun lineas(s: String) = s.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
 
