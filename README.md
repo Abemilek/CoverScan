@@ -25,6 +25,7 @@
 
 ## Table of contents
 
+- [Features](#features)
 - [JSON format](#json-format)
 - [Building the APK (universal release)](#building-the-apk-universal-release)
   - [Requirements](#requirements)
@@ -35,25 +36,32 @@
   - [Alternative: Android Studio](#alternative-android-studio)
 - [Usage](#usage)
 - [Tuning field recognition](#tuning-field-recognition)
+- [Running the tests](#running-the-tests)
 - [Structure](#structure)
 - [License](#license)
+
+## Features
 
 - **100% on-device OCR** (ML Kit, bundled model). The app **has no internet permission**.
 - Flow: **Capture** → the cover is read and split into fields → **editable preview** → **Save and continue** → … → **Export** (a single `.json`).
 - You can also import several photos you already took using **Gallery** (they are reviewed one by one).
-- Every saved document is written immediately to the app's internal storage, so nothing is lost if you close the app. Anything still in the "Pending review" queue is lost if the app is closed.
+- **Tap the preview to focus**, and a **Light** button turns the torch on (shown only if the phone has one). Avoid the camera flash on glossy covers: it creates reflections.
+- A warning appears if you save a document whose title is already in the list (it is saved anyway).
+- Every saved document is written immediately (in the background, crash-safe) to the app's internal storage, so nothing is lost if you close the app. Anything still in the "Pending review" queue is lost if the app is closed.
 - Fields: category (Thesis/Seminar, Disc/CD, Book, Other), work type, title, authors, tutors/advisors, institution, faculty/area/center, date/place, other texts, notes, full OCR text.
-- Covers are not all alike: whatever the program fails to recognize goes to "Others", and everything can be fixed on the review screen. The full text is always saved.
+- Covers are not all alike: fields that are not on a cover are exported as `null`, whatever the program fails to recognize goes to "Others", and everything can be fixed on the review screen. The full text is always saved.
+- Works with covers from any university (the institution block is no longer tied to UNAN), with or without "Br./Lic./Msc." prefixes, and with labels such as Autor, Alumno, Estudiante, Sustentante, Integrantes, Bachilleres, Presentado/Elaborado por, Tutor, Asesor, Revisor, Jurado…
 
 ## JSON format
 
 The keys always exist; if a piece of data does not appear on the cover (date, tutor, etc.) its value is `null`.
+Documents are exported in scanning order (oldest first); the in-app list shows the newest first.
 The labels Autor/Alumno/Estudiante/Sustentante/Presentado por are all stored under `autores`.
 
 ```json
 {
   "version": 1,
-  "exportado_en": "2026-10-16T15:30:00",
+  "exportado_en": "2026-10-16T15:30:00-06:00",
   "total": 1,
   "documentos": [
     {
@@ -68,8 +76,8 @@ The labels Autor/Alumno/Estudiante/Sustentante/Presentado por are all stored und
       "fecha_lugar": "Jinotepe, Carazo, diciembre del 2018",
       "otros": null,
       "texto_completo": "…",
-      "notas": "",
-      "escaneado_en": "2026-10-16T15:12:00"
+      "notas": null,
+      "escaneado_en": "2026-10-16T15:12:00-06:00"
     }
   ]
 }
@@ -180,7 +188,7 @@ If you prefer a graphical interface: open the project folder with [Android Studi
 
 ## Usage
 
-1. **Scan** tab: frame the cover with good light, avoid reflections (glossy covers cause them) and tap **Capture**.
+1. **Scan** tab: frame the cover with good light, avoid reflections (glossy covers cause them), tap the preview to focus (use **Light** if the room is dark) and tap **Capture**.
 2. Review/fix the fields. Pick the category. **Save and continue** goes back to the camera.
 3. In **List** you can tap a document to edit or delete it.
 4. **Export** opens the system picker so you can choose where to save the `.json` (all documents in one file). You can export as many times as you want; the internal content is kept.
@@ -188,6 +196,18 @@ If you prefer a graphical interface: open the project folder with [Android Studi
 ## Tuning field recognition
 
 Everything lives in `app/src/main/java/com/example/portadas/PortadaParser.kt`: regular expressions for roles (author, tutor, advisor…), units (faculty, area, center…), work type and dates. If you see a pattern that keeps failing on your covers, add the word there.
+
+After a role label ("Autores:", "Elaborado por:"…) the parser also accepts name-like lines without a "Br./Lic." prefix. If that starts swallowing title lines, set `NOMBRES_SIN_PREFIJO = false` at the top of the file.
+
+## Running the tests
+
+The parser is plain Kotlin, so it is tested on the JVM without a phone:
+
+```bash
+./gradlew testDebugUnitTest
+```
+
+The cases live in `app/src/test/java/com/example/portadas/PortadaParserTest.kt`. To add a cover that fails: export the JSON, copy its `texto_completo` (one line per row) into a new `listOf(...)` and write the result you expected.
 
 ## Structure
 
@@ -199,6 +219,8 @@ app/src/main/java/com/example/portadas/
   PortadaParser.kt    splits the OCR text into fields
   DocumentStore.kt    JSON read/write
   Model.kt            Documento class
+app/src/test/java/com/example/portadas/
+  PortadaParserTest.kt  parser unit tests
 
 keystore.properties          signing credentials (ignored by git)
 coverscan-release.keystore   signing keystore (ignored by git)

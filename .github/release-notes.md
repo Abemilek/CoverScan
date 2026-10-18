@@ -11,7 +11,7 @@ Android app to scan covers of theses, seminars, CDs and books with **100% on-dev
 ### 📱 Install
 
 - Requires Android 7.0 (API 24) or later
-- Universal APK for `arm64-v8a`, `armeabi-v7a`, `x86` and `x86_64`
+- Universal APK for `arm64-v8a` and `armeabi-v7a` (covers virtually all phones; x86 emulators are not supported in release builds)
 - `adb install -r CoverScan-<version>.apk`, or copy the APK to the phone and open it
 
 Signed release build — the same certificate will sign future updates.
