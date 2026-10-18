@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build & lint
+    name: Build, lint & test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -42,6 +42,17 @@ jobs:
 
       - name: Run lint
         run: ./gradlew lintDebug --stacktrace
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-report
+          path: app/build/reports/tests/testDebugUnitTest
+          if-no-files-found: ignore
 
       - name: Upload lint report
         if: failure()
