@@ -50,6 +50,7 @@
 - Every saved document is written immediately (in the background, crash-safe) to the app's internal storage, so nothing is lost if you close the app. Anything still in the "Pending review" queue is lost if the app is closed.
 - Fields: category (Thesis/Seminar, Disc/CD, Book, Other), work type, title, authors, tutors/advisors, institution, faculty/area/center, date/place, other texts, notes, full OCR text.
 - Covers are not all alike: fields that are not on a cover are exported as `null`, whatever the program fails to recognize goes to "Others", and everything can be fixed on the review screen. The full text is always saved.
+- Pairs such as "Carrera:", "Asignatura:", "Componente:" are saved in `campos_extra` (e.g. `{"Carrera": "…"}`); "Docente:" counts as a tutor; "Tema:"/"Título:" set the title.
 - Works with covers from any university (the institution block is no longer tied to UNAN), with or without "Br./Lic./Msc." prefixes, and with labels such as Autor, Alumno, Estudiante, Sustentante, Integrantes, Bachilleres, Presentado/Elaborado por, Tutor, Asesor, Revisor, Jurado…
 
 ## JSON format
@@ -75,6 +76,7 @@ The labels Autor/Alumno/Estudiante/Sustentante/Presentado por are all stored und
       "facultad_area": "FACULTAD DE CIENCIAS MÉDICAS",
       "fecha_lugar": "Jinotepe, Carazo, diciembre del 2018",
       "otros": null,
+      "campos_extra": null,
       "texto_completo": "…",
       "notas": null,
       "escaneado_en": "2026-10-16T15:12:00-06:00"
