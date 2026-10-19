@@ -5,6 +5,7 @@ import android.util.Size
 import android.view.MotionEvent
 import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Camera
@@ -19,6 +20,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,7 +35,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -57,8 +58,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.SimpleDateFormat
@@ -110,124 +109,135 @@ fun App(vm: MainViewModel = viewModel()) {
     }
 
     Surface(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
-            Row(
-                Modifier.fillMaxWidth().padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (pantalla == 0) Button({ }, Modifier.weight(1f)) { Text("Escanear") }
-                else OutlinedButton({ pantalla = 0 }, Modifier.weight(1f)) { Text("Escanear") }
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (pantalla == 0) Button({ }, Modifier.weight(1f)) { Text("Escanear") }
+                    else OutlinedButton({ pantalla = 0 }, Modifier.weight(1f)) { Text("Escanear") }
 
-                if (pantalla == 1) Button({ }, Modifier.weight(1f)) { Text("Lista (${docs.size})") }
-                else OutlinedButton({ pantalla = 1 }, Modifier.weight(1f)) { Text("Lista (${docs.size})") }
+                    if (pantalla == 1) Button({ }, Modifier.weight(1f)) { Text("Lista (${docs.size})") }
+                    else OutlinedButton({ pantalla = 1 }, Modifier.weight(1f)) { Text("Lista (${docs.size})") }
 
-                OutlinedButton(
-                    onClick = { importar.launch(arrayOf("*/*")) },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Importar") }
+                    OutlinedButton(
+                        onClick = { importar.launch(arrayOf("*/*")) },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Importar") }
 
-                OutlinedButton(
-                    onClick = {
-                        if (docs.isEmpty()) {
-                            Toast.makeText(context, "Aún no hay documentos guardados", Toast.LENGTH_SHORT).show()
-                        } else {
-                            val nombre = "coverscan_" +
-                                SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date()) + ".json"
-                            exportar.launch(nombre)
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Exportar") }
-            }
+                    OutlinedButton(
+                        onClick = {
+                            if (docs.isEmpty()) {
+                                Toast.makeText(context, "Aún no hay documentos guardados", Toast.LENGTH_SHORT).show()
+                            } else {
+                                val nombre = "coverscan_" +
+                                    SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date()) + ".json"
+                                exportar.launch(nombre)
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Exportar") }
+                }
 
-            if (pantalla == 0) {
-                Column(Modifier.weight(1f).fillMaxWidth()) {
-                    Box(Modifier.weight(1f).fillMaxWidth()) {
-                        if (tienePermiso) {
-                            CameraPreview(
-                                modifier = Modifier.fillMaxSize(),
-                                onReady = { captura, cam ->
-                                    imageCapture = captura
-                                    camara = cam
-                                    if (linterna) cam.cameraControl.enableTorch(true)
-                                },
-                                onRelease = {
-                                    imageCapture = null
-                                    camara = null
-                                },
-                                onError = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
-                            )
-                        } else {
-                            Column(
-                                Modifier.fillMaxSize().padding(24.dp),
-                                verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text("Se necesita permiso de cámara (o usa la galería).")
-                                Button({ permisoLauncher.launch(Manifest.permission.CAMERA) }) { Text("Dar permiso") }
+                if (pantalla == 0) {
+                    Column(Modifier.weight(1f).fillMaxWidth()) {
+                        Box(Modifier.weight(1f).fillMaxWidth()) {
+                            if (tienePermiso) {
+                                CameraPreview(
+                                    modifier = Modifier.fillMaxSize(),
+                                    onReady = { captura, cam ->
+                                        imageCapture = captura
+                                        camara = cam
+                                        if (linterna) cam.cameraControl.enableTorch(true)
+                                    },
+                                    onRelease = {
+                                        imageCapture = null
+                                        camara = null
+                                    },
+                                    onError = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                                )
+                            } else {
+                                Column(
+                                    Modifier.fillMaxSize().padding(24.dp),
+                                    verticalArrangement = Arrangement.Center,
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("Se necesita permiso de cámara (o usa la galería).")
+                                    Button({ permisoLauncher.launch(Manifest.permission.CAMERA) }) { Text("Dar permiso") }
+                                }
+                            }
+                            if (ocr > 0) {
+                                // Aviso estático (sin spinner girando): solo dice que el OCR está en curso
+                                Surface(
+                                    modifier = Modifier.align(Alignment.Center),
+                                    shape = MaterialTheme.shapes.small,
+                                    tonalElevation = 6.dp
+                                ) {
+                                    Text("Procesando…", Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                                }
                             }
                         }
-                        if (ocr > 0) CircularProgressIndicator(Modifier.align(Alignment.Center))
-                    }
-                    Text(
-                        "Guardados: ${docs.size} · Por revisar: ${cola.size}",
-                        Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Row(
-                        Modifier.fillMaxWidth().padding(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                imageCapture?.let { vm.capturar(it, ContextCompat.getMainExecutor(context)) }
-                            },
-                            enabled = imageCapture != null && ocr == 0 && tienePermiso,
-                            modifier = Modifier.weight(2f)
-                        ) { Text("Capturar") }
-                        OutlinedButton({ galeria.launch("image/*") }, Modifier.weight(1f)) { Text("Galería") }
-                        if (camara?.cameraInfo?.hasFlashUnit() == true) {
-                            OutlinedButton(
+                        Text(
+                            "Guardados: ${docs.size} · Por revisar: ${cola.size}",
+                            Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Row(
+                            Modifier.fillMaxWidth().padding(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
                                 onClick = {
-                                    linterna = !linterna
-                                    camara?.cameraControl?.enableTorch(linterna)
+                                    imageCapture?.let { vm.capturar(it, ContextCompat.getMainExecutor(context)) }
                                 },
-                                modifier = Modifier.weight(1f)
-                            ) { Text(if (linterna) "Luz: sí" else "Luz: no") }
+                                enabled = imageCapture != null && ocr == 0 && tienePermiso,
+                                modifier = Modifier.weight(2f)
+                            ) { Text("Capturar") }
+                            OutlinedButton({ galeria.launch("image/*") }, Modifier.weight(1f)) { Text("Galería") }
+                            if (camara?.cameraInfo?.hasFlashUnit() == true) {
+                                OutlinedButton(
+                                    onClick = {
+                                        linterna = !linterna
+                                        camara?.cameraControl?.enableTorch(linterna)
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text(if (linterna) "Luz: sí" else "Luz: no") }
+                            }
                         }
                     }
+                } else {
+                    ListaScreen(
+                        docs = docs,
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        onEditar = { vm.editar(it) },
+                        onBorrar = { vm.borrar(it) }
+                    )
                 }
-            } else {
-                ListaScreen(
-                    docs = docs,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    onEditar = { vm.editar(it) },
-                    onBorrar = { vm.borrar(it) }
+            }
+
+            // Revisión: primero lo recién escaneado, si no, el que se está editando desde la lista
+            val nuevo = cola.firstOrNull()
+            if (nuevo != null) {
+                RevisionScreen(
+                    doc = nuevo,
+                    titulo = "Revisar escaneo" + if (cola.size > 1) " (+${cola.size - 1} en espera)" else "",
+                    textoGuardar = "Guardar y seguir",
+                    textoCancelar = "Descartar",
+                    onGuardar = { vm.guardarNuevo(it) },
+                    onCancelar = { vm.descartarPrimero() }
+                )
+            } else if (editando != null) {
+                RevisionScreen(
+                    doc = editando!!,
+                    titulo = "Editar documento",
+                    textoGuardar = "Guardar cambios",
+                    textoCancelar = "Cancelar",
+                    onGuardar = { vm.guardarEdicion(it) },
+                    onCancelar = { vm.cancelarEdicion() }
                 )
             }
         }
-    }
-
-    // Revisión: primero lo recién escaneado, si no, el que se está editando desde la lista
-    val nuevo = cola.firstOrNull()
-    if (nuevo != null) {
-        RevisionDialog(
-            doc = nuevo,
-            titulo = "Revisar escaneo" + if (cola.size > 1) " (+${cola.size - 1} en espera)" else "",
-            textoGuardar = "Guardar y seguir",
-            textoCancelar = "Descartar",
-            onGuardar = { vm.guardarNuevo(it) },
-            onCancelar = { vm.descartarPrimero() }
-        )
-    } else if (editando != null) {
-        RevisionDialog(
-            doc = editando!!,
-            titulo = "Editar documento",
-            textoGuardar = "Guardar cambios",
-            textoCancelar = "Cancelar",
-            onGuardar = { vm.guardarEdicion(it) },
-            onCancelar = { vm.cancelarEdicion() }
-        )
     }
 }
 
@@ -341,7 +351,7 @@ fun ListaScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RevisionDialog(
+fun RevisionScreen(
     doc: Documento,
     titulo: String,
     textoGuardar: String,
@@ -366,77 +376,76 @@ fun RevisionDialog(
 
     fun lineas(s: String) = s.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
 
-    Dialog(
-        onDismissRequest = {},
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnBackPress = false,
-            dismissOnClickOutside = false
-        )
+    // Pantalla completa en vez de ventana de diálogo: aparece al instante (sin animación de
+    // ventana ni crear una ventana nueva en cada escaneo). El fondo absorbe los toques para
+    // que no se pulse ningún botón que quede debajo.
+    BackHandler { /* la revisión se decide con los botones */ }
+    Surface(
+        Modifier
+            .fillMaxSize()
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
     ) {
-        Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize()) {
-                Column(
-                    Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(titulo, style = MaterialTheme.typography.titleLarge)
+        Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(titulo, style = MaterialTheme.typography.titleLarge)
 
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CATEGORIAS.forEach { c ->
-                            FilterChip(selected = categoria == c, onClick = { categoria = c }, label = { Text(c) })
-                        }
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CATEGORIAS.forEach { c ->
+                        FilterChip(selected = categoria == c, onClick = { categoria = c }, label = { Text(c) })
                     }
-                    Campo("Título", tituloDoc, 2) { tituloDoc = it }
-                    Campo("Tipo de trabajo", tipoTrabajo, 1) { tipoTrabajo = it }
-                    Campo("Autores (uno por línea)", autores, 2) { autores = it }
-                    Campo("Tutores / asesores (uno por línea)", tutores, 2) { tutores = it }
-                    Campo("Institución", institucion, 1) { institucion = it }
-                    Campo("Facultad / área / centro", facultad, 1) { facultad = it }
-                    Campo("Fecha / lugar", fecha, 1) { fecha = it }
-                    Campo("Otros campos (Etiqueta: valor, uno por línea)", extras, 2) { extras = it }
-                    Campo("Otros textos (uno por línea)", otros, 2) { otros = it }
-                    Campo("Notas (ej. ubicación en la bodega)", notas, 1) { notas = it }
-                    Campo("Texto completo leído (OCR)", texto, 4) { texto = it }
                 }
-                Row(
-                    Modifier.fillMaxWidth().padding(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(onCancelar, Modifier.weight(1f)) { Text(textoCancelar) }
-                    Button(
-                        onClick = {
-                            // "Etiqueta: valor" → campos extra; las líneas sin dos puntos pasan a "otros"
-                            val extrasMapa = linkedMapOf<String, String>()
-                            val sueltas = mutableListOf<String>()
-                            lineas(extras).forEach { ln ->
-                                val p = ln.indexOf(':')
-                                if (p > 0 && ln.substring(p + 1).isNotBlank()) {
-                                    extrasMapa[ln.substring(0, p).trim()] = ln.substring(p + 1).trim()
-                                } else {
-                                    sueltas += ln
-                                }
+                Campo("Título", tituloDoc, 2) { tituloDoc = it }
+                Campo("Tipo de trabajo", tipoTrabajo, 1) { tipoTrabajo = it }
+                Campo("Autores (uno por línea)", autores, 2) { autores = it }
+                Campo("Tutores / asesores (uno por línea)", tutores, 2) { tutores = it }
+                Campo("Institución", institucion, 1) { institucion = it }
+                Campo("Facultad / área / centro", facultad, 1) { facultad = it }
+                Campo("Fecha / lugar", fecha, 1) { fecha = it }
+                Campo("Otros campos (Etiqueta: valor, uno por línea)", extras, 2) { extras = it }
+                Campo("Otros textos (uno por línea)", otros, 2) { otros = it }
+                Campo("Notas (ej. ubicación en la bodega)", notas, 1) { notas = it }
+                Campo("Texto completo leído (OCR)", texto, 4) { texto = it }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(onCancelar, Modifier.weight(1f)) { Text(textoCancelar) }
+                Button(
+                    onClick = {
+                        // "Etiqueta: valor" → campos extra; las líneas sin dos puntos pasan a "otros"
+                        val extrasMapa = linkedMapOf<String, String>()
+                        val sueltas = mutableListOf<String>()
+                        lineas(extras).forEach { ln ->
+                            val p = ln.indexOf(':')
+                            if (p > 0 && ln.substring(p + 1).isNotBlank()) {
+                                extrasMapa[ln.substring(0, p).trim()] = ln.substring(p + 1).trim()
+                            } else {
+                                sueltas += ln
                             }
-                            onGuardar(
-                                doc.copy(
-                                    categoria = categoria,
-                                    tipoTrabajo = tipoTrabajo.trim(),
-                                    titulo = tituloDoc.trim(),
-                                    autores = lineas(autores),
-                                    tutores = lineas(tutores),
-                                    institucion = institucion.trim(),
-                                    facultadArea = facultad.trim(),
-                                    fechaLugar = fecha.trim(),
-                                    otros = lineas(otros) + sueltas,
-                                    camposExtra = extrasMapa,
-                                    notas = notas.trim(),
-                                    textoCompleto = texto
-                                )
+                        }
+                        onGuardar(
+                            doc.copy(
+                                categoria = categoria,
+                                tipoTrabajo = tipoTrabajo.trim(),
+                                titulo = tituloDoc.trim(),
+                                autores = lineas(autores),
+                                tutores = lineas(tutores),
+                                institucion = institucion.trim(),
+                                facultadArea = facultad.trim(),
+                                fechaLugar = fecha.trim(),
+                                otros = lineas(otros) + sueltas,
+                                camposExtra = extrasMapa,
+                                notas = notas.trim(),
+                                textoCompleto = texto
                             )
-                        },
-                        modifier = Modifier.weight(2f)
-                    ) { Text(textoGuardar) }
-                }
+                        )
+                    },
+                    modifier = Modifier.weight(2f)
+                ) { Text(textoGuardar) }
             }
         }
     }
