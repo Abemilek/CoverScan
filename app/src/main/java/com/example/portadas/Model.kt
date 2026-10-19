@@ -21,6 +21,8 @@ data class Documento(
     val facultadArea: String = "",
     val fechaLugar: String = "",
     val otros: List<String> = emptyList(),
+    /** Pares "Etiqueta: valor" que no encajan en otro campo (Carrera, Asignatura, Componente…). */
+    val camposExtra: Map<String, String> = emptyMap(),
     val textoCompleto: String = "",
     val notas: String = "",
     val escaneadoEn: String = ahoraIso()

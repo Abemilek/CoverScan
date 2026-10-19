@@ -74,6 +74,7 @@ class DocumentStore(context: Context) {
             put("facultad_area", txt(d.facultadArea))
             put("fecha_lugar", txt(d.fechaLugar))
             put("otros", arr(d.otros))
+            put("campos_extra", if (d.camposExtra.isEmpty()) JSONObject.NULL else JSONObject(d.camposExtra))
             put("texto_completo", txt(d.textoCompleto))
             put("notas", txt(d.notas))
             put("escaneado_en", d.escaneadoEn)
@@ -93,6 +94,9 @@ class DocumentStore(context: Context) {
             facultadArea = str(o, "facultad_area"),
             fechaLugar = str(o, "fecha_lugar"),
             otros = lista(o.optJSONArray("otros")),
+            camposExtra = o.optJSONObject("campos_extra")?.let { j ->
+                j.keys().asSequence().associateWith { k -> j.optString(k) }
+            } ?: emptyMap(),
             textoCompleto = str(o, "texto_completo"),
             notas = str(o, "notas"),
             escaneadoEn = str(o, "escaneado_en").ifBlank { ahoraIso() }

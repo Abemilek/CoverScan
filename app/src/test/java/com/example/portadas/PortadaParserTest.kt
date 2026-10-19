@@ -156,4 +156,46 @@ class PortadaParserTest {
         assertEquals(listOf("Ana Torres", "Luis Mora"), d.autores)
         assertEquals("Nov. 2024", d.fechaLugar)
     }
+
+    @Test
+    fun portadaDeCurso_conEtiquetasYIntegrantes() {
+        // Caso real: PDF escaneado desde la pantalla del teléfono (trae la hora y el nombre del archivo)
+        val d = PortadaParser.parse(
+            listOf(
+                "18 de oct 19:59", "Diagnóstico y diseño inicial de la calidad del proceso +Entregable.pdf",
+                "UNIVERSIDAD", "NACIONAL", "AUTONOMA DE", "NICARAGUA,", "MANAGUA", "UNAN MANAGUA",
+                "Centro Universitario Regional de Carazo-CUR Carazo", "Departamento ciencias tecnología y salud",
+                "Carrera:", "Ingeniería en sistemas de la información IV año",
+                "Docente:", "Eddy Winston Galán Vivas", "Componente:", "Optativa",
+                "Integrantes:", "José Abemilek Canda Cruz.", "Francisco de Jesús Sánchez Avellan,",
+                "Arnold Danny Logo Gutiérrez.", "Jinotepe, 27 agosto de 2026"
+            )
+        )
+        assertEquals(
+            listOf("José Abemilek Canda Cruz", "Francisco de Jesús Sánchez Avellan", "Arnold Danny Logo Gutiérrez"),
+            d.autores
+        )
+        assertEquals(listOf("Docente: Eddy Winston Galán Vivas"), d.tutores)
+        assertEquals(
+            "Centro Universitario Regional de Carazo-CUR Carazo | Departamento ciencias tecnología y salud",
+            d.facultadArea
+        )
+        assertEquals("Ingeniería en sistemas de la información IV año", d.camposExtra["Carrera"])
+        assertEquals("Optativa", d.camposExtra["Componente"])
+        assertEquals("Jinotepe, 27 agosto de 2026", d.fechaLugar)
+        assertEquals("Diagnóstico y diseño inicial de la calidad del proceso +Entregable.pdf", d.titulo)
+    }
+
+    @Test
+    fun tituloExplicitoConEtiqueta() {
+        val d = PortadaParser.parse(
+            listOf(
+                "UNIVERSIDAD CENTROAMERICANA", "UCA", "Tema:", "Impacto del turismo rural en Granada",
+                "Asignatura: Economía", "Autor: Ana Ruiz"
+            )
+        )
+        assertEquals("Impacto del turismo rural en Granada", d.titulo)
+        assertEquals("Economía", d.camposExtra["Asignatura"])
+        assertEquals(listOf("Ana Ruiz"), d.autores)
+    }
 }

@@ -347,6 +347,9 @@ fun RevisionDialog(
     var facultad by rememberSaveable(doc.id) { mutableStateOf(doc.facultadArea) }
     var fecha by rememberSaveable(doc.id) { mutableStateOf(doc.fechaLugar) }
     var otros by rememberSaveable(doc.id) { mutableStateOf(doc.otros.joinToString("\n")) }
+    var extras by rememberSaveable(doc.id) {
+        mutableStateOf(doc.camposExtra.entries.joinToString("\n") { "${it.key}: ${it.value}" })
+    }
     var notas by rememberSaveable(doc.id) { mutableStateOf(doc.notas) }
     var texto by rememberSaveable(doc.id) { mutableStateOf(doc.textoCompleto) }
 
@@ -380,6 +383,7 @@ fun RevisionDialog(
                     Campo("Institución", institucion, 1) { institucion = it }
                     Campo("Facultad / área / centro", facultad, 1) { facultad = it }
                     Campo("Fecha / lugar", fecha, 1) { fecha = it }
+                    Campo("Otros campos (Etiqueta: valor, uno por línea)", extras, 2) { extras = it }
                     Campo("Otros textos (uno por línea)", otros, 2) { otros = it }
                     Campo("Notas (ej. ubicación en la bodega)", notas, 1) { notas = it }
                     Campo("Texto completo leído (OCR)", texto, 4) { texto = it }
@@ -391,6 +395,17 @@ fun RevisionDialog(
                     OutlinedButton(onCancelar, Modifier.weight(1f)) { Text(textoCancelar) }
                     Button(
                         onClick = {
+                            // "Etiqueta: valor" → campos extra; las líneas sin dos puntos pasan a "otros"
+                            val extrasMapa = linkedMapOf<String, String>()
+                            val sueltas = mutableListOf<String>()
+                            lineas(extras).forEach { ln ->
+                                val p = ln.indexOf(':')
+                                if (p > 0 && ln.substring(p + 1).isNotBlank()) {
+                                    extrasMapa[ln.substring(0, p).trim()] = ln.substring(p + 1).trim()
+                                } else {
+                                    sueltas += ln
+                                }
+                            }
                             onGuardar(
                                 doc.copy(
                                     categoria = categoria,
@@ -401,7 +416,8 @@ fun RevisionDialog(
                                     institucion = institucion.trim(),
                                     facultadArea = facultad.trim(),
                                     fechaLugar = fecha.trim(),
-                                    otros = lineas(otros),
+                                    otros = lineas(otros) + sueltas,
+                                    camposExtra = extrasMapa,
                                     notas = notas.trim(),
                                     textoCompleto = texto
                                 )

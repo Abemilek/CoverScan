@@ -22,7 +22,8 @@ object PortadaParser {
         "autor|alumn|estudiante|sustentante|integrante|bachiller|egresad[oa]|maestrante|investigador|" +
             "presentad[oa] por|elaborad[oa] por|realizad[oa] por"
     private const val ROLES_TUTOR =
-        "tutor|asesor|director|revisor|supervisor|jurado|docente gu[ií]a|profesor gu[ií]a|coordinador"
+        "tutor|asesor|director|revisor|supervisor|jurado|docente gu[ií]a|profesor gu[ií]a|coordinador|" +
+            "docente|profesor|catedr[aá]tic[oa]"
     private const val MES =
         "enero|febrero|marzo|abril|mayo|junio|julio|agosto|se[p]?tiembre|octubre|noviembre|diciembre"
     private const val COMILLAS = "“”\"'«»‟„‘’ "
@@ -77,20 +78,48 @@ object PortadaParser {
     )
     private val discoRe = Regex("""\b(?:cd|dvd|cd-?rom|discos?)\b""", IC)
 
+    // Hora del teléfono u otro ruido de pantalla (cuando se escanea un PDF mostrado en el móvil)
+    private val ruidoRe = Regex("""\b\d{1,2}:\d{2}\b""")
+    // "Carrera:" solo en una línea (el valor va en la siguiente) o "Asignatura: Cálculo" en la misma línea
+    private val etiquetaSoloRe = Regex("""^\s*(\p{L}[\p{L} ]{1,28}?)\s*:\s*$""", IC)
+    private val etiquetaExtraRe = Regex(
+        """^\s*(carrera|asignatura|curso|materia|componente|grupo|modalidad|turno|ciclo|semestre|secci[oó]n|""" +
+            """per[ií]odo|m[oó]dulo|c[oó]digo|edici[oó]n|volumen|editorial|isbn|serie)\s*:\s*(\S.*)$""", IC
+    )
+    private val tituloEtiquetaRe = Regex("""^(?:t[ií]tulo|tema|nombre del (?:proyecto|trabajo))$""", IC)
+    private val tituloInlineRe = Regex("""^\s*(?:t[ií]tulo|tema)\s*:\s*(\S.*)$""", IC)
+    // "Departamento…", "Escuela…", "Instituto…" justo después de otra línea de unidad (sin "de")
+    private val unidadCadena = Regex("""^(?:departamento|escuela|instituto)\b""", IC)
+    // "Docente"/"Profesor" solo cuentan como etiqueta si llevan dos puntos ("Docente: Fulano")
+    private val soloConDosPuntos = Regex("""^(?:docente|profesor|catedr[aá]tic)\w*$""", IC)
+
+    /** Quita la coma/punto final que deja el OCR en listas de nombres ("…Avellan," / "…Cruz."). */
+    private fun limpiarNombre(s: String): String {
+        var t = s.trim().trimEnd(',', ';').trim()
+        if (t.endsWith('.')) {
+            val sin = t.dropLast(1)
+            if (sin.substringAfterLast(' ').length > 1) t = sin // conserva iniciales como "J."
+        }
+        return t
+    }
+
     /** Devuelve el match de una línea de etiqueta ("Autor: …", "Tutor", …) solo si de verdad parece una etiqueta. */
     private fun rolDe(linea: String): MatchResult? {
         val m = rol.find(linea) ?: return null
         val resto = m.groupValues[2].trim()
         val inicioResto = m.groups[2]?.range?.first ?: linea.length
         val conDosPuntos = linea.substring(0, inicioResto).contains(':')
+        if (soloConDosPuntos.matches(m.groupValues[1].trim()) && !conDosPuntos) return null
         val valido = resto.isEmpty() || conDosPuntos ||
-            prefijoTitulo.containsMatchIn("$resto ") || nombreRe.matches(resto)
+            prefijoTitulo.containsMatchIn("$resto ") || nombreRe.matches(limpiarNombre(resto))
         return if (valido) m else null
     }
 
-    private fun esUnidad(linea: String, idx: Int, finEncabezado: Int): Boolean {
+    private fun esUnidad(linea: String, idx: Int, finEncabezado: Int, marca: BooleanArray): Boolean {
         if (unidadFuerte.containsMatchIn(linea)) return true
-        return unidadDebil.containsMatchIn(linea) && idx <= finEncabezado + 4 && linea.length <= 70
+        if (unidadDebil.containsMatchIn(linea) && idx <= finEncabezado + 4 && linea.length <= 70) return true
+        return idx > 0 && marca[idx - 1] && unidadCadena.containsMatchIn(linea) &&
+            !linea.contains(':') && linea.length <= 70
     }
 
     private fun aceptaNombre(linea: String, previos: List<String>, esAutor: Boolean): Boolean {
@@ -100,7 +129,7 @@ object PortadaParser {
                 !tipoTrabajoRe.containsMatchIn(linea) && !fechaRe.containsMatchIn(linea)
         }
         return NOMBRES_SIN_PREFIJO && esAutor && previos.size < 8 && linea.length <= 60 &&
-            nombreRe.matches(linea) && !noNombre.containsMatchIn(linea)
+            nombreRe.matches(limpiarNombre(linea)) && !noNombre.containsMatchIn(linea)
     }
 
     /** Une líneas; si una termina en guion y la siguiente sigue la palabra ("produc-" + "tivo") las pega. */
@@ -124,8 +153,11 @@ object PortadaParser {
         val n = l.size
         val usada = BooleanArray(n)
 
-        // Lema de la universidad (se descarta)
-        for (i in 0 until n) if (lemaRe.containsMatchIn(l[i])) usada[i] = true
+        // Lema de la universidad y ruido de pantalla (hora del teléfono): se descartan (siguen en texto_completo)
+        val marca = BooleanArray(n) // líneas ya reconocidas como unidad
+        for (i in 0 until n) {
+            if (lemaRe.containsMatchIn(l[i]) || (ruidoRe.containsMatchIn(l[i]) && l[i].length <= 25)) usada[i] = true
+        }
 
         // Institución: bloque que empieza en "Universidad…" y termina en una sigla conocida (UNAN, UCA, UNI…).
         // Sin sigla: la línea sola (más la siguiente si la frase queda cortada en "de", "y"…).
@@ -156,11 +188,12 @@ object PortadaParser {
         // Facultad / área / centro
         val unidades = mutableListOf<String>()
         for (k in 0 until n) {
-            if (!usada[k] && esUnidad(l[k], k, finEncabezado)) {
+            if (!usada[k] && esUnidad(l[k], k, finEncabezado, marca)) {
                 usada[k] = true
+                marca[k] = true
                 var txt = l[k]
                 if (txt.length <= 24 && k + 1 < n && !usada[k + 1] && l[k + 1].length <= 60 &&
-                    !esUnidad(l[k + 1], k + 1, finEncabezado) && rolDe(l[k + 1]) == null
+                    !esUnidad(l[k + 1], k + 1, finEncabezado, marca) && rolDe(l[k + 1]) == null
                 ) {
                     txt += " " + l[k + 1]
                     usada[k + 1] = true
@@ -182,7 +215,7 @@ object PortadaParser {
             val nombres = mutableListOf<String>()
             if (m.groupValues[2].isNotBlank()) nombres += m.groupValues[2].trim()
             var j = p + 1
-            while (j < n && !usada[j] && rolDe(l[j]) == null && !esUnidad(l[j], j, finEncabezado) &&
+            while (j < n && !usada[j] && rolDe(l[j]) == null && !esUnidad(l[j], j, finEncabezado, marca) &&
                 aceptaNombre(l[j], nombres, esAutor)
             ) {
                 nombres += l[j]
@@ -190,11 +223,46 @@ object PortadaParser {
                 j++
             }
             if (esAutor) {
-                autores += nombres.map { it.replace(prefijoBr, "") }
+                autores += nombres.map { limpiarNombre(it.replace(prefijoBr, "")) }
             } else {
-                tutores += nombres.map { "$etiqueta: $it" }
+                tutores += nombres.map { "$etiqueta: ${limpiarNombre(it)}" }
             }
             p = j
+        }
+
+        // Pares "Etiqueta: valor" (Carrera, Asignatura, Componente…) y título explícito ("Tema:", "Título:")
+        val extras = linkedMapOf<String, String>()
+        var tituloExplicito = ""
+        for (k in 0 until n) {
+            if (usada[k]) continue
+            val inlineTitulo = tituloInlineRe.find(l[k])
+            if (inlineTitulo != null) {
+                usada[k] = true
+                if (tituloExplicito.isEmpty()) tituloExplicito = inlineTitulo.groupValues[1].trim()
+                continue
+            }
+            val inline = etiquetaExtraRe.find(l[k])
+            if (inline != null) {
+                usada[k] = true
+                extras[inline.groupValues[1].trim().lowercase().replaceFirstChar { it.uppercase() }] =
+                    inline.groupValues[2].trim()
+                continue
+            }
+            val solo = etiquetaSoloRe.find(l[k])
+            if (solo != null && solo.groupValues[1].trim().split(Regex("\\s+")).size <= 3 &&
+                k + 1 < n && !usada[k + 1] && l[k + 1].length <= 100 &&
+                rolDe(l[k + 1]) == null && !esUnidad(l[k + 1], k + 1, finEncabezado, marca) &&
+                !etiquetaSoloRe.containsMatchIn(l[k + 1])
+            ) {
+                val etiqueta = solo.groupValues[1].trim()
+                usada[k] = true
+                usada[k + 1] = true
+                if (tituloEtiquetaRe.matches(etiqueta)) {
+                    if (tituloExplicito.isEmpty()) tituloExplicito = l[k + 1]
+                } else {
+                    extras[etiqueta.replaceFirstChar { it.uppercase() }] = l[k + 1]
+                }
+            }
         }
 
         // Tipo de trabajo (Seminario de graduación, Inscripción de tema, Tesis para optar al título de…)
@@ -204,7 +272,7 @@ object PortadaParser {
                 usada[k] = true
                 tipoTrabajo = l[k]
                 if (prepFinal.containsMatchIn(l[k]) && k + 1 < n && !usada[k + 1] && l[k + 1].length < 50 &&
-                    rolDe(l[k + 1]) == null && !esUnidad(l[k + 1], k + 1, finEncabezado)
+                    rolDe(l[k + 1]) == null && !esUnidad(l[k + 1], k + 1, finEncabezado, marca)
                 ) {
                     tipoTrabajo += " " + l[k + 1]
                     usada[k + 1] = true
@@ -265,8 +333,9 @@ object PortadaParser {
             if (len > mejorLen) { mejorLen = len; mejor = idx }
             k = q
         }
-        val titulo = unirLineas(mejor.map { l[it] }).trim { it in COMILLAS }
-        mejor.forEach { usada[it] = true }
+        val tituloAuto = unirLineas(mejor.map { l[it] }).trim { it in COMILLAS }
+        val titulo = if (tituloExplicito.isNotEmpty()) tituloExplicito else tituloAuto
+        if (tituloExplicito.isEmpty()) mejor.forEach { usada[it] = true }
 
         val otros = l.filterIndexed { idx, _ -> !usada[idx] }
 
@@ -283,6 +352,7 @@ object PortadaParser {
             facultadArea = unidades.joinToString(" | "),
             fechaLugar = fechaLugar,
             otros = otros,
+            camposExtra = extras,
             textoCompleto = l.joinToString("\n")
         )
     }
