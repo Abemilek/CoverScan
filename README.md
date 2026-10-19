@@ -27,6 +27,7 @@
 
 - [Features](#features)
 - [JSON format](#json-format)
+- [Joining scans from several phones](#joining-scans-from-several-phones)
 - [Building the APK (universal release)](#building-the-apk-universal-release)
   - [Requirements](#requirements)
   - [1. Set up the SDK (once)](#1-set-up-the-sdk-once)
@@ -47,17 +48,19 @@
 - You can also import several photos you already took using **Gallery** (they are reviewed one by one).
 - **Tap the preview to focus**, and a **Light** button turns the torch on (shown only if the phone has one). Avoid the camera flash on glossy covers: it creates reflections.
 - A warning appears if you save a document whose title is already in the list (it is saved anyway).
-- Every saved document is written immediately (in the background, crash-safe) to the app's internal storage, so nothing is lost if you close the app. Anything still in the "Pending review" queue is lost if the app is closed.
+- Every saved document is written immediately (in the background, crash-safe) to the app's internal storage, so nothing is lost if you close the app. The "Pending review" queue is also saved: an interrupted scanning session is restored the next time you open the app.
 - Fields: category (Thesis/Seminar, Disc/CD, Book, Other), work type, title, authors, tutors/advisors, institution, faculty/area/center, date/place, other texts, notes, full OCR text.
 - Covers are not all alike: fields that are not on a cover are exported as `null`, whatever the program fails to recognize goes to "Others", and everything can be fixed on the review screen. The full text is always saved.
-- Pairs such as "Carrera:", "Asignatura:", "Componente:" are saved in `campos_extra` (e.g. `{"Carrera": "…"}`); "Docente:" counts as a tutor; "Tema:"/"Título:" set the title.
-- Works with covers from any university (the institution block is no longer tied to UNAN), with or without "Br./Lic./Msc." prefixes, and with labels such as Autor, Alumno, Estudiante, Sustentante, Integrantes, Bachilleres, Presentado/Elaborado por, Tutor, Asesor, Revisor, Jurado…
+- Pairs such as "Carrera:", "Asignatura:", "Componente:" are saved in `campos_extra` (e.g. `{"Carrera": "…"}`); "Docente:" counts as a tutor; "Tema:"/"Título:" set the title. Repeated labels are joined with "; " (never overwritten) and standard abbreviations keep their uppercase (`ISBN`, `ISSN`, `CD`, `DVD`).
+- Works with covers from any university (the institution block is no longer tied to UNAN), in Spanish or English, with or without "Br./Lic./Msc." prefixes, and with labels such as Autor, Alumno, Estudiante, Sustentante, Integrantes, Bachilleres, Presentado/Elaborado por, Tutor, Asesor, Revisor, Jurado, Author, Student, Advisor, Supervisor…
+- **Import** JSON files exported from the other phones to merge the work of the whole team; documents already in the list (same id) are ignored.
 
 ## JSON format
 
 The keys always exist; if a piece of data does not appear on the cover (date, tutor, etc.) its value is `null`.
 Documents are exported in scanning order (oldest first); the in-app list shows the newest first.
 The labels Autor/Alumno/Estudiante/Sustentante/Presentado por are all stored under `autores`.
+`tutores` keeps the role inside the value (`"Rol: nombre"`, e.g. `"Asesor: Msc. …"`, equivalent to MARC 720); `campos_extra` keys start with a capital letter:
 
 ```json
 {
@@ -84,6 +87,19 @@ The labels Autor/Alumno/Estudiante/Sustentante/Presentado por are all stored und
   ]
 }
 ```
+
+## Joining scans from several phones
+
+Each phone exports its own `.json`. To merge the work of the whole team, use the script in `scripts/consolidar.py` (only needs Python 3, no packages to install):
+
+```bash
+python3 scripts/consolidar.py telefono1.json telefono2.json telefono3.json \
+  --csv datos.csv --sqlite biblioteca.db
+```
+
+- Merges every `documentos` array, skipping records whose `id` is already present (the app does the same when you use the **Import** button).
+- Warns about possible duplicates (same title and first author, accents ignored); `--eliminar-duplicados` keeps only the oldest copy of each.
+- `--csv` writes a file you can open in Excel; `--sqlite` builds a small database with `documentos`, `autores`, `tutores` (role and name separated) and `campos_extra` tables, ready for the final database.
 
 ## Building the APK (universal release)
 
@@ -209,7 +225,7 @@ The parser is plain Kotlin, so it is tested on the JVM without a phone:
 ./gradlew testDebugUnitTest
 ```
 
-The cases live in `app/src/test/java/com/example/portadas/PortadaParserTest.kt`. To add a cover that fails: export the JSON, copy its `texto_completo` (one line per row) into a new `listOf(...)` and write the result you expected.
+The cases live in `app/src/test/java/com/example/portadas/PortadaParserTest.kt` (including two real covers photographed in the field, recreated from their `texto_completo`). To add a cover that fails: export the JSON, copy its `texto_completo` (one line per row) into a new `listOf(...)` and write the result you expected.
 
 ## Structure
 
@@ -223,6 +239,8 @@ app/src/main/java/com/example/portadas/
   Model.kt            Documento class
 app/src/test/java/com/example/portadas/
   PortadaParserTest.kt  parser unit tests
+scripts/
+  consolidar.py         merge the exports of several phones (CSV / SQLite)
 
 keystore.properties          signing credentials (ignored by git)
 coverscan-release.keystore   signing keystore (ignored by git)
