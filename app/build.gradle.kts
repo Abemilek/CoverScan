@@ -20,8 +20,8 @@ android {
         applicationId = "com.example.portadas"
         minSdk = 24
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.2.0"
+        versionCode = 6
+        versionName = "1.2.1"
     }
 
     signingConfigs {
