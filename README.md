@@ -54,6 +54,7 @@
 - Pairs such as "Carrera:", "Asignatura:", "Componente:" are saved in `campos_extra` (e.g. `{"Carrera": "…"}`); "Docente:" counts as a tutor; "Tema:"/"Título:" set the title. Repeated labels are joined with "; " (never overwritten) and standard abbreviations keep their uppercase (`ISBN`, `ISSN`, `CD`, `DVD`).
 - Works with covers from any university (the institution block is no longer tied to UNAN), in Spanish or English, with or without "Br./Lic./Msc." prefixes, and with labels such as Autor, Alumno, Estudiante, Sustentante, Integrantes, Bachilleres, Presentado/Elaborado por, Tutor, Asesor, Revisor, Jurado, Author, Student, Advisor, Supervisor…
 - **Import** JSON files exported from the other phones to merge the work of the whole team; documents already in the list (same id) are ignored.
+- Deliberately animation-free: screens change instantly (no transitions, no dialog windows) and the OCR indicator is a static badge; on Android 12+ the launch splash is a plain background without the icon animation.
 
 ## JSON format
 

@@ -9,6 +9,7 @@ Android app to scan covers of theses, seminars, CDs and books with **100% on-dev
 - **Team workflow** — import the JSON exports from several phones and merge them (already known documents are skipped); `scripts/consolidar.py` turns the exports into CSV or an SQLite database
 - **Spanish and English covers** — roles (Author, Advisor, Supervisor…), work types (Thesis, Dissertation…) and dates in both languages; a book with ISBN/Editorial is no longer mistaken for a thesis
 - **Safe storage** — every saved document is written immediately to the app's internal storage, and the pending review queue survives an accidental close or a dead battery
+- **Built for speed** — no transition animations: the review step is a plain in-app screen (no dialog windows), the OCR indicator is a static badge, and on Android 12+ the splash does not animate
 
 ### 📱 Install
 
