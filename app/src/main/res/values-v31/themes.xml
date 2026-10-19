@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Android 12+: el splash del sistema no muestra icono ni lo anima: queda solo el fondo
+      y la app aparece de inmediato. (El splash en sí lo controla el sistema; esto quita el
+      icono y su animación, que es lo que se percibe como "arranque lento".)
+    -->
+    <style name="Theme.CoverScan" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
+    </style>
+</resources>
