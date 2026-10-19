@@ -15,12 +15,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.text.Normalizer
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import kotlin.math.abs
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val store = DocumentStore(app)
+    private val storeCola = DocumentStore(app, "pendientes.json")
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     /** Un solo hilo para el disco: las escrituras se hacen en orden y sin bloquear la interfaz. */
@@ -29,8 +31,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _docs = MutableStateFlow(store.load())
     val docs: StateFlow<List<Documento>> = _docs.asStateFlow()
 
-    /** Escaneos leídos que esperan revisión (el primero es el que se muestra). */
-    private val _cola = MutableStateFlow<List<Documento>>(emptyList())
+    /** Escaneos leídos que esperan revisión (el primero es el que se muestra). Se guardan en disco. */
+    private val _cola = MutableStateFlow(storeCola.load())
     val cola: StateFlow<List<Documento>> = _cola.asStateFlow()
 
     private val _editando = MutableStateFlow<Documento?>(null)
@@ -40,9 +42,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val ocrEnCurso: StateFlow<Int> = _ocr.asStateFlow()
 
     private val _mensaje = MutableStateFlow(
-        if (store.archivoCorrupto)
-            "El archivo interno estaba dañado; se guardó como documentos.corrupto.json"
-        else null
+        when {
+            store.archivoCorrupto ->
+                "El archivo interno estaba dañado; se guardó como documentos.corrupto.json"
+            storeCola.archivoCorrupto ->
+                "Los pendientes de revisión estaban dañados; se guardaron como pendientes.corrupto.json"
+            else -> null
+        }
     )
     val mensaje: StateFlow<String?> = _mensaje.asStateFlow()
 
@@ -103,6 +109,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _mensaje.value = "No se detectó texto, intenta de nuevo"
                 } else {
                     _cola.update { it + PortadaParser.parse(filas) }
+                    persistirCola()
                 }
             }
             .addOnFailureListener { _mensaje.value = "Error de OCR: ${it.message}" }
@@ -148,18 +155,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun normalizar(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
+    /** Igual que persistir(), pero para la cola de pendientes de revisión. */
+    private fun persistirCola() {
+        val copia = _cola.value
+        io.execute {
+            try {
+                storeCola.save(copia)
+            } catch (e: Exception) {
+                _mensaje.value = "No se pudieron guardar los pendientes: ${e.message}"
+            }
+        }
+    }
+
+    /** Texto sin tildes, en minúsculas y sin espacios ni signos, para comparar ("García" == "Garcia"). */
+    private fun normalizar(s: String): String =
+        Normalizer.normalize(s, Normalizer.Form.NFD)
+            .replace(Regex("\\p{Mn}+"), "")
+            .lowercase().filter { it.isLetterOrDigit() }
+
+    /** Dos documentos son el mismo si coinciden título y primer autor (el autor se ignora si falta). */
+    private fun mismoDocumento(a: Documento, b: Documento): Boolean =
+        a.titulo.isNotBlank() && b.titulo.isNotBlank() &&
+            normalizar(a.titulo) == normalizar(b.titulo) &&
+            (a.autores.isEmpty() || b.autores.isEmpty() ||
+                normalizar(a.autores.first()) == normalizar(b.autores.first()))
 
     fun guardarNuevo(d: Documento) {
-        val duplicado = d.titulo.isNotBlank() &&
-            _docs.value.any { normalizar(it.titulo) == normalizar(d.titulo) }
+        val duplicado = _docs.value.any { mismoDocumento(it, d) }
         _docs.update { listOf(d) + it }
         persistir()
         _cola.update { it.drop(1) }
+        persistirCola()
         if (duplicado) _mensaje.value = "Aviso: ya existía un documento con el mismo título (se guardó igual)"
     }
 
-    fun descartarPrimero() { _cola.update { it.drop(1) } }
+    fun descartarPrimero() {
+        _cola.update { it.drop(1) }
+        persistirCola()
+    }
 
     fun editar(d: Documento) { _editando.value = d }
     fun cancelarEdicion() { _editando.value = null }
@@ -192,6 +225,37 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             _mensaje.value =
                 if (ok) "JSON guardado (${copia.size} documentos)" else "No se pudo guardar el archivo"
+        }
+    }
+
+    /**
+     * Fusiona un JSON exportado (p. ej. el de otro teléfono del equipo): agrega los documentos
+     * cuyo id todavía no exista. El resto del archivo se conserva y todo queda en orden de escaneo.
+     */
+    fun importar(uri: Uri) {
+        io.execute {
+            val importados = try {
+                val texto = getApplication<Application>().contentResolver.openInputStream(uri)
+                    ?.use { it.readBytes().toString(Charsets.UTF_8) }
+                    .orEmpty()
+                if (texto.isBlank()) emptyList() else DocumentStore.fromJsonString(texto)
+            } catch (e: Exception) {
+                _mensaje.value = "No se pudo leer el archivo JSON"
+                return@execute
+            }
+            if (importados.isEmpty()) {
+                _mensaje.value = "El archivo no contiene documentos"
+                return@execute
+            }
+            val existentes = _docs.value.mapTo(HashSet()) { it.id }
+            val nuevos = importados.filter { it.id !in existentes }
+            val repetidos = importados.size - nuevos.size
+            _docs.update { (it + nuevos).sortedByDescending { doc -> doc.escaneadoEn } }
+            persistir()
+            _mensaje.value = buildString {
+                append("Importados ${nuevos.size} documento(s)")
+                if (repetidos > 0) append("; $repetidos ya existían")
+            }
         }
     }
 }

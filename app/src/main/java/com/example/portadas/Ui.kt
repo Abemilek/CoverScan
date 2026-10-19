@@ -95,6 +95,9 @@ fun App(vm: MainViewModel = viewModel()) {
     val exportar = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) vm.exportar(uri)
     }
+    val importar = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.importar(uri)
+    }
 
     LaunchedEffect(Unit) {
         if (!tienePermiso) permisoLauncher.launch(Manifest.permission.CAMERA)
@@ -117,6 +120,11 @@ fun App(vm: MainViewModel = viewModel()) {
 
                 if (pantalla == 1) Button({ }, Modifier.weight(1f)) { Text("Lista (${docs.size})") }
                 else OutlinedButton({ pantalla = 1 }, Modifier.weight(1f)) { Text("Lista (${docs.size})") }
+
+                OutlinedButton(
+                    onClick = { importar.launch(arrayOf("*/*")) },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Importar") }
 
                 OutlinedButton(
                     onClick = {
@@ -277,7 +285,10 @@ fun CameraPreview(
                     if (ev.action == MotionEvent.ACTION_UP) {
                         camara?.let { c ->
                             val punto = meteringPointFactory.createPoint(ev.x, ev.y)
-                            c.cameraControl.startFocusAndMetering(FocusMeteringAction.Builder(punto).build())
+                            // Puede fallar si la cámara se está cerrando: no vale la pena tumbar la app
+                            runCatching {
+                                c.cameraControl.startFocusAndMetering(FocusMeteringAction.Builder(punto).build())
+                            }
                         }
                         v.performClick()
                     }

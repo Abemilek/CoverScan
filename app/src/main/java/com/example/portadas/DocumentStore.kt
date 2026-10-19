@@ -10,9 +10,10 @@ import java.util.UUID
 /**
  * Guarda todo en un único archivo JSON interno (se actualiza con cada documento guardado).
  * Usa AtomicFile: si la app se cierra a mitad de una escritura, se conserva la versión anterior.
+ * [nombre] permite reutilizarlo para otros archivos (p. ej. "pendientes.json").
  */
-class DocumentStore(context: Context) {
-    private val archivo = AtomicFile(File(context.filesDir, "documentos.json"))
+class DocumentStore(context: Context, nombre: String = "documentos.json") {
+    private val archivo = AtomicFile(File(context.filesDir, nombre))
 
     /** true si al cargar se encontró un archivo ilegible (se renombró a documentos.corrupto.json). */
     var archivoCorrupto = false
@@ -24,7 +25,7 @@ class DocumentStore(context: Context) {
             fromJsonString(String(archivo.readFully(), Charsets.UTF_8))
         } catch (e: Exception) {
             val base = archivo.baseFile
-            base.renameTo(File(base.parentFile, "documentos.corrupto.json"))
+            base.renameTo(File(base.parentFile, base.name.removeSuffix(".json") + ".corrupto.json"))
             archivoCorrupto = true
             emptyList()
         }
@@ -54,9 +55,19 @@ class DocumentStore(context: Context) {
             return raiz.toString(2).replace("\\/", "/")
         }
 
+        /** Lanza excepción solo si el JSON raíz está mal formado; los registros dañados se omiten. */
         fun fromJsonString(s: String): List<Documento> {
             val arr = JSONObject(s).optJSONArray("documentos") ?: return emptyList()
-            return List(arr.length()) { fromJson(arr.getJSONObject(it)) }
+            val docs = ArrayList<Documento>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                try {
+                    docs += fromJson(o)
+                } catch (e: Exception) {
+                    // Registro dañado: se salta para no perder el resto del archivo
+                }
+            }
+            return docs
         }
 
         // Los campos que no aparecen en la portada se guardan como null (la clave siempre existe)
@@ -103,6 +114,6 @@ class DocumentStore(context: Context) {
         )
 
         private fun lista(a: JSONArray?): List<String> =
-            if (a == null) emptyList() else List(a.length()) { a.getString(it) }
+            if (a == null) emptyList() else List(a.length()) { a.optString(it) }.filter { it.isNotBlank() }
     }
 }
