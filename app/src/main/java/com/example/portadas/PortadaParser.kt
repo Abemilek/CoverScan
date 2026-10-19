@@ -4,7 +4,8 @@ import kotlin.math.abs
 
 /**
  * Convierte las filas de texto del OCR en campos. Es una heurística: las portadas no son
- * iguales, así que lo que no se reconoce va a "otros" y todo se puede corregir en la revisión.
+ * iguales (se reconocen etiquetas en español y en inglés), así que lo que no se reconoce
+ * va a "otros" y todo se puede corregir en la revisión.
  * Para ajustar el reconocimiento, edita las expresiones regulares de este archivo.
  *
  * Los campos que no aparecen en la portada quedan vacíos (se exportan como null).
@@ -20,16 +21,21 @@ object PortadaParser {
 
     private const val ROLES_AUTOR =
         "autor|alumn|estudiante|sustentante|integrante|bachiller|egresad[oa]|maestrante|investigador|" +
-            "presentad[oa] por|elaborad[oa] por|realizad[oa] por"
+            "presentad[oa] por|elaborad[oa] por|realizad[oa] por|" +
+            "author|co-?author|by|written by|presented by|submitted by|prepared by|elaborated by|" +
+            "student|researcher|writer"
     private const val ROLES_TUTOR =
         "tutor|asesor|director|revisor|supervisor|jurado|docente gu[ií]a|profesor gu[ií]a|coordinador|" +
-            "docente|profesor|catedr[aá]tic[oa]"
+            "docente|profesor|catedr[aá]tic[oa]|direcci[oó]n|" +
+            "advis(?:or|er)|co-?advis(?:or|er)|supervis(?:or|er)|reader|committee(?:\\s+member)?|" +
+            "examiner|mentor|guide|reviewer"
     private const val MES =
-        "enero|febrero|marzo|abril|mayo|junio|julio|agosto|se[p]?tiembre|octubre|noviembre|diciembre"
+        "enero|febrero|marzo|abril|mayo|junio|julio|agosto|se[p]?tiembre|octubre|noviembre|diciembre|" +
+            "january|february|march|april|may|june|july|august|september|october|november|december"
     private const val COMILLAS = "“”\"'«»‟„‘’ "
 
     private val prefijoTitulo =
-        Regex("""^(br|bra|bach|msc|m\.sc|dr|dra|lic|licda|ing|mtro|mtra|phd|prof|profa)\b\.?\s""", IC)
+        Regex("""^(br|bra|bach|msc|m\.sc|dr|dra|lic|licda|ing|mtro|mtra|phd|prof|profa|mr|mrs|ms|sr|sra)\b\.?\s""", IC)
 
     private val rol = Regex(
         """^\s*((?:co)?(?:$ROLES_AUTOR|$ROLES_TUTOR|presentan?(?=\s*:|\s*$))""" +
@@ -39,21 +45,27 @@ object PortadaParser {
     )
     private val rolAutor = Regex(
         "autor|alumn|estudiante|sustentante|integrante|bachiller|egresad|maestrante|investigador|" +
-            "present|elaborad|realizad", IC
+            "present|elaborad|realizad|author|by|written|submitted|prepared|student|researcher|writer", IC
     )
 
     // Facultad / área / centro (siempre) y unidades "débiles" (solo cerca del encabezado y con la forma "Escuela de …")
-    private val unidadFuerte =
-        Regex("""^(facultad|[aá]rea de conocimiento|centro universitario)\b""", IC)
+    private val unidadFuerte = Regex(
+        """^(facultad|[aá]rea de conocimiento|centro universitario|area of knowledge|""" +
+            """(?:faculty|school|college|department|institute|cent(?:er|re))\s+of)\b""", IC
+    )
     private val unidadDebil = Regex(
-        """^(?:(?:departamento|escuela|instituto|carrera)\s+(?:de|del)\b|(?:maestr[ií]a|doctorado)\s+en\b)""", IC
+        """^(?:(?:departamento|escuela|instituto|carrera)\s+(?:de|del)\b|(?:maestr[ií]a|doctorado)\s+en\b|""" +
+            """(?:master'?s|phd|doctoral)\s+program\b)""", IC
     )
 
     private val tipoTrabajoRe = Regex(
         """^[^\p{L}]*(inscripci[oó]n de tema|seminario de graduaci[oó]n|seminario para optar|""" +
             """seminario de (?:investigaci[oó]n|tesis)|para optar|tesis|monograf[ií]a|trabajo monogr[aá]fico|""" +
             """trabajo de (?:graduaci[oó]n|curso|diploma|investigaci[oó]n)|informe final|""" +
-            """informe de (?:pr[aá]ctica|pasant[ií]a|investigaci[oó]n)|protocolo de)\b""", IC
+            """informe de (?:pr[aá]ctica|pasant[ií]a|investigaci[oó]n)|protocolo de|""" +
+            """thesis|dissertation|capstone(?: project)?|final (?:project|report|paper)|""" +
+            """research (?:project|paper)|master'?s? (?:thesis|project|dissertation)|""" +
+            """doctoral dissertation|(?:in |submitted in )?partial fulfillment|for the degree of)\b""", IC
     )
 
     private val fechaRe = Regex(
@@ -63,7 +75,7 @@ object PortadaParser {
     private val fechaNumRe = Regex("""\b\d{1,2}[/.\-]\d{1,2}[/.\-](?:\d{2}|\d{4})\b""")
 
     private val lemaRe = Regex("""universidad del pueblo""", IC)
-    private val inicioInstRe = Regex("""^[^\p{L}]*universidad\b""", IC)
+    private val inicioInstRe = Regex("""^[^\p{L}]*(?:universidad|university)\b""", IC)
     private val siglasRe = Regex("""\b(UNAN|UNICA|UPOLI|UAM|UCC|UCA|UNI|UNICIT|BICU|URACCAN)\b""") // solo mayúsculas
     private val prepFinal = Regex("""\b(de|del|en|al|y|la|el|los|las)$""", IC)
 
@@ -74,9 +86,12 @@ object PortadaParser {
     private val noNombre = Regex(
         "ingenier|licenciad|doctor|maestr|grado|t[ií]tulo|facultad|universidad|seminario|tesis|monograf|" +
             "departamento|escuela|instituto|carrera|nicaragua|managua|carazo|jinotepe|centro|[aá]rea|" +
-            "conocimiento|propuesta|informe|proyecto", IC
+            "conocimiento|propuesta|informe|proyecto|university|faculty|college|school|department|" +
+            "institute|thesis|dissertation|capstone", IC
     )
-    private val discoRe = Regex("""\b(?:cd|dvd|cd-?rom|discos?)\b""", IC)
+    private val discoRe = Regex("""\b(?:cd|dvd|cd-?rom|discos?|dis[ck]s?)\b""", IC)
+    // Etiqueta del soporte ("DISCO COMPACTO", "CD", "DVD"): no es parte del título
+    private val soporteRe = Regex("""^(?:disco|cd|dvd|compact disc|disco compacto|cd-?rom|dvd-?rom)\.?$""", IC)
 
     // Hora del teléfono u otro ruido de pantalla (cuando se escanea un PDF mostrado en el móvil)
     private val ruidoRe = Regex("""\b\d{1,2}:\d{2}\b""")
@@ -84,12 +99,14 @@ object PortadaParser {
     private val etiquetaSoloRe = Regex("""^\s*(\p{L}[\p{L} ]{1,28}?)\s*:\s*$""", IC)
     private val etiquetaExtraRe = Regex(
         """^\s*(carrera|asignatura|curso|materia|componente|grupo|modalidad|turno|ciclo|semestre|secci[oó]n|""" +
-            """per[ií]odo|m[oó]dulo|c[oó]digo|edici[oó]n|volumen|editorial|isbn|serie)\s*:\s*(\S.*)$""", IC
+            """per[ií]odo|m[oó]dulo|c[oó]digo|edici[oó]n|volumen|editorial|isbn|serie|contenido|duraci[oó]n|""" +
+            """pistas|tracks)\s*:\s*(\S.*)$""", IC
     )
-    private val tituloEtiquetaRe = Regex("""^(?:t[ií]tulo|tema|nombre del (?:proyecto|trabajo))$""", IC)
-    private val tituloInlineRe = Regex("""^\s*(?:t[ií]tulo|tema)\s*:\s*(\S.*)$""", IC)
+    private val tituloEtiquetaRe = Regex("""^(?:t[ií]tulo|tema|nombre del (?:proyecto|trabajo)|title|topic)$""", IC)
+    private val tituloInlineRe =
+        Regex("""^\s*(?:t[ií]tulo|tema|nombre del (?:proyecto|trabajo)|title|topic)\s*:\s*(\S.*)$""", IC)
     // "Departamento…", "Escuela…", "Instituto…" justo después de otra línea de unidad (sin "de")
-    private val unidadCadena = Regex("""^(?:departamento|escuela|instituto)\b""", IC)
+    private val unidadCadena = Regex("""^(?:departamento|escuela|instituto|department|school|institute)\b""", IC)
     // "Docente"/"Profesor" solo cuentan como etiqueta si llevan dos puntos ("Docente: Fulano")
     private val soloConDosPuntos = Regex("""^(?:docente|profesor|catedr[aá]tic)\w*$""", IC)
 
@@ -101,6 +118,27 @@ object PortadaParser {
             if (sin.substringAfterLast(' ').length > 1) t = sin // conserva iniciales como "J."
         }
         return t
+    }
+
+    /** "Asesor/es:" → "Asesor", "TUTOR:" → "Tutor" (la misma etiqueta siempre con la misma forma). */
+    private fun normalizarEtiqueta(s: String): String {
+        val t = s.trim().replace(Regex("""\s*/\s*(?:es|as|a)$""", IC), "")
+        return t.lowercase().replaceFirstChar { it.uppercase() }
+    }
+
+    private val clavesSigla = setOf("isbn", "issn", "cd", "dvd")
+
+    /** Claves de campos_extra: primera letra en mayúscula; las siglas conocidas en mayúsculas ("Isbn" → "ISBN"). */
+    private fun normalizarClave(s: String): String {
+        val base = s.trim().lowercase()
+        return if (base in clavesSigla) base.uppercase() else base.replaceFirstChar { it.uppercase() }
+    }
+
+    /** Agrega a campos_extra; si la clave ya existe (p. ej. dos "Componente:"), une los valores con "; ". */
+    private fun guardarExtra(extras: LinkedHashMap<String, String>, clave: String, valor: String) {
+        val k = normalizarClave(clave)
+        val previo = extras[k]
+        extras[k] = if (previo == null) valor else "$previo; $valor"
     }
 
     /** Devuelve el match de una línea de etiqueta ("Autor: …", "Tutor", …) solo si de verdad parece una etiqueta. */
@@ -120,6 +158,19 @@ object PortadaParser {
         if (unidadDebil.containsMatchIn(linea) && idx <= finEncabezado + 4 && linea.length <= 70) return true
         return idx > 0 && marca[idx - 1] && unidadCadena.containsMatchIn(linea) &&
             !linea.contains(':') && linea.length <= 70
+    }
+
+    /** "TECNOLOGÍA"/"Y TECNOLOGÍA" justo debajo de una unidad es su continuación ("CIENCIAS BÁSICA" + "TECNOLOGÍA"). */
+    private fun continuacionCaps(linea: String, k: Int, marca: BooleanArray): Boolean {
+        if (k == 0 || !marca[k - 1] || linea.contains(':')) return false
+        if (linea.length > 30 || linea.any { it.isDigit() }) return false
+        if (linea.split(Regex("\\s+")).size > 2) return false
+        if (lemaRe.containsMatchIn(linea) || inicioInstRe.containsMatchIn(linea) ||
+            soporteRe.containsMatchIn(linea)
+        ) return false
+        if (tipoTrabajoRe.containsMatchIn(linea) || rolDe(linea) != null || fechaRe.containsMatchIn(linea)) return false
+        val letras = linea.filter { it.isLetter() }
+        return letras.length >= 3 && letras.all { it.isUpperCase() }
     }
 
     private fun aceptaNombre(linea: String, previos: List<String>, esAutor: Boolean): Boolean {
@@ -153,10 +204,13 @@ object PortadaParser {
         val n = l.size
         val usada = BooleanArray(n)
 
-        // Lema de la universidad y ruido de pantalla (hora del teléfono): se descartan (siguen en texto_completo)
+        // Lema de la universidad, etiqueta del soporte y ruido de pantalla (hora del teléfono):
+        // se descartan como campo (siguen en texto_completo)
         val marca = BooleanArray(n) // líneas ya reconocidas como unidad
         for (i in 0 until n) {
-            if (lemaRe.containsMatchIn(l[i]) || (ruidoRe.containsMatchIn(l[i]) && l[i].length <= 25)) usada[i] = true
+            if (lemaRe.containsMatchIn(l[i]) || soporteRe.containsMatchIn(l[i]) ||
+                (ruidoRe.containsMatchIn(l[i]) && l[i].length <= 25)
+            ) usada[i] = true
         }
 
         // Institución: bloque que empieza en "Universidad…" y termina en una sigla conocida (UNAN, UCA, UNI…).
@@ -199,6 +253,11 @@ object PortadaParser {
                     usada[k + 1] = true
                 }
                 unidades += txt
+            } else if (!usada[k] && continuacionCaps(l[k], k, marca)) {
+                // Continuación en mayúsculas de la unidad anterior ("CIENCIAS BÁSICA" + "TECNOLOGÍA")
+                usada[k] = true
+                marca[k] = true
+                if (unidades.isNotEmpty()) unidades[unidades.size - 1] = unidades.last() + " " + l[k]
             }
         }
 
@@ -210,7 +269,7 @@ object PortadaParser {
             val m = if (!usada[p]) rolDe(l[p]) else null
             if (m == null) { p++; continue }
             usada[p] = true
-            val etiqueta = m.groupValues[1].trim().replaceFirstChar { it.uppercase() }
+            val etiqueta = normalizarEtiqueta(m.groupValues[1])
             val esAutor = rolAutor.containsMatchIn(etiqueta)
             val nombres = mutableListOf<String>()
             if (m.groupValues[2].isNotBlank()) nombres += m.groupValues[2].trim()
@@ -244,8 +303,7 @@ object PortadaParser {
             val inline = etiquetaExtraRe.find(l[k])
             if (inline != null) {
                 usada[k] = true
-                extras[inline.groupValues[1].trim().lowercase().replaceFirstChar { it.uppercase() }] =
-                    inline.groupValues[2].trim()
+                guardarExtra(extras, inline.groupValues[1], inline.groupValues[2].trim())
                 continue
             }
             val solo = etiquetaSoloRe.find(l[k])
@@ -260,7 +318,7 @@ object PortadaParser {
                 if (tituloEtiquetaRe.matches(etiqueta)) {
                     if (tituloExplicito.isEmpty()) tituloExplicito = l[k + 1]
                 } else {
-                    extras[etiqueta.replaceFirstChar { it.uppercase() }] = l[k + 1]
+                    guardarExtra(extras, etiqueta, l[k + 1])
                 }
             }
         }
@@ -339,11 +397,15 @@ object PortadaParser {
 
         val otros = l.filterIndexed { idx, _ -> !usada[idx] }
 
-        val pareceTesis = tipoTrabajo.isNotEmpty() || tutores.isNotEmpty() ||
-            (institucion.isNotEmpty() && autores.isNotEmpty())
+        val textoPlano = l.joinToString(" ")
+        val tesisFuerte = tipoTrabajo.isNotEmpty() || (institucion.isNotEmpty() && autores.isNotEmpty())
+        val pareceTesis = tesisFuerte || tutores.isNotEmpty()
+        // Señales de libro: campos "ISBN/ISSN/Editorial/Edición" en la portada
+        val pareceLibro = extras.keys.any { it == "ISBN" || it == "ISSN" || it == "Editorial" || it == "Edición" } ||
+            Regex("""\bISBN\b""").containsMatchIn(textoPlano)
 
         return Documento(
-            categoria = adivinarCategoria(l.joinToString(" "), n, pareceTesis),
+            categoria = adivinarCategoria(textoPlano, n, pareceTesis, tesisFuerte, pareceLibro),
             tipoTrabajo = tipoTrabajo,
             titulo = titulo,
             autores = autores,
@@ -357,9 +419,14 @@ object PortadaParser {
         )
     }
 
-    private fun adivinarCategoria(texto: String, filas: Int, pareceTesis: Boolean): String {
-        if (pareceTesis) return "Tesis/Seminario"
-        if (discoRe.containsMatchIn(texto)) return "Disco/CD"
-        return if (filas <= 4) "Libro" else "Otro"
+    private fun adivinarCategoria(
+        texto: String, filas: Int, pareceTesis: Boolean, tesisFuerte: Boolean, pareceLibro: Boolean
+    ): String = when {
+        discoRe.containsMatchIn(texto) && !tesisFuerte -> "Disco/CD"
+        pareceTesis && !pareceLibro -> "Tesis/Seminario"
+        pareceLibro -> "Libro"
+        pareceTesis -> "Tesis/Seminario" // tesis que además menciona una editorial
+        filas <= 4 -> "Libro"
+        else -> "Otro"
     }
 }

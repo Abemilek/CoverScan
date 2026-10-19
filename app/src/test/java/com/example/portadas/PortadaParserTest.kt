@@ -198,4 +198,144 @@ class PortadaParserTest {
         assertEquals("Economía", d.camposExtra["Asignatura"])
         assertEquals(listOf("Ana Ruiz"), d.autores)
     }
+
+    @Test
+    fun portadaReal_seminarioGraduacion_conBrillo() {
+        // Portada real fotografiada con reflejos: el OCR leyó "plásticass", "CIỆNCIAS" y el lema ilegible.
+        val d = PortadaParser.parse(
+            listOf(
+                "UNIVERSIDAD", "NACIONAL", "AUTÓNOMA DE", "NICARAGUA,", "MANAGUA", "UNAN-MANAGUA",
+                "SEMINARIO DE GRADUACIÓN",
+                "Propuesta de mejora al proceso productivo de bobinas",
+                "plásticass estilo Silera 24\" x 0.500\", en el área de extrusión",
+                "de la empresa plásticos Flexibles de Nicaragua S.A ubicada",
+                "en el km 45.5 carretera Jinotepe-San Marcos, durante el",
+                "segundo semestre del año 2024.",
+                "Ramos, Pérez, Palacios", "Tutor", "Msc. Francisco José Hernández Garela",
+                "AREA DE CONOCIMIENTO CIỆNCIAS BÁSICA", "TECNOLOGIA",
+                "Junivevsidad del Suctle y paa el pucle!"
+            )
+        )
+        assertEquals("Tesis/Seminario", d.categoria)
+        assertEquals("SEMINARIO DE GRADUACIÓN", d.tipoTrabajo)
+        assertEquals(listOf("Ramos", "Pérez", "Palacios"), d.autores)
+        assertEquals(listOf("Tutor: Msc. Francisco José Hernández Garela"), d.tutores)
+        assertEquals("AREA DE CONOCIMIENTO CIỆNCIAS BÁSICA TECNOLOGIA", d.facultadArea)
+        assertEquals(listOf("Junivevsidad del Suctle y paa el pucle!"), d.otros)
+        assertTrue(d.titulo.startsWith("Propuesta de mejora"))
+        assertTrue(d.titulo.endsWith("segundo semestre del año 2024."))
+    }
+
+    @Test
+    fun portadaReal_seminarioParaOptar_fotoNitida() {
+        val d = PortadaParser.parse(
+            listOf(
+                "UNIVERSIDAD", "NACIONAL", "AUTÓNOMA DE", "NICARAGUA,", "MANAGUA", "UNAN-MANAGUA",
+                "Área de Conocimiento", "Ciencias Básicas y Tecnologia", "Centro Universitario Regional de Carazo",
+                "Propuestas de mejora para incrementar la productividad del proceso",
+                "productivo de alimentos caninos en Avicola San Francisco S.A, durante el",
+                "segundo semestre del año 2024.",
+                "Autor/es:", "Br. Elaine Daniela Aburto Ruiz", "Br. Fernanda José Cano López",
+                "Br. Oscar Ottoniel Rosales Sánchez",
+                "Asesor/es:", "Msc. Francisco José Hernández Garcia",
+                "Seminario para optar al grado de", "Ingeniero Industrial", "Noviembre, 2024",
+                "iUniversidad del pueblo y para el pueblo!"
+            )
+        )
+        assertEquals("Tesis/Seminario", d.categoria)
+        assertEquals("Seminario para optar al grado de Ingeniero Industrial", d.tipoTrabajo)
+        assertEquals(
+            listOf("Elaine Daniela Aburto Ruiz", "Fernanda José Cano López", "Oscar Ottoniel Rosales Sánchez"),
+            d.autores
+        )
+        assertEquals(listOf("Asesor: Msc. Francisco José Hernández Garcia"), d.tutores)
+        assertEquals(
+            "Área de Conocimiento Ciencias Básicas y Tecnologia | Centro Universitario Regional de Carazo",
+            d.facultadArea
+        )
+        assertEquals("Noviembre, 2024", d.fechaLugar)
+    }
+
+    @Test
+    fun portadaEnIngles() {
+        val d = PortadaParser.parse(
+            listOf(
+                "UNIVERSITY OF CENTRAL AMERICA", "MASTER THESIS",
+                "Design of a database for cover cataloging",
+                "Author: John A. Smith", "Advisor: Dr. Jane Doe", "May 2024"
+            )
+        )
+        assertEquals("Tesis/Seminario", d.categoria)
+        assertEquals("MASTER THESIS", d.tipoTrabajo)
+        assertEquals("UNIVERSITY OF CENTRAL AMERICA", d.institucion)
+        assertEquals("Design of a database for cover cataloging", d.titulo)
+        assertEquals(listOf("John A. Smith"), d.autores)
+        assertEquals(listOf("Advisor: Dr. Jane Doe"), d.tutores)
+        assertEquals("May 2024", d.fechaLugar)
+    }
+
+    @Test
+    fun libroConIsbn_noEsTesis() {
+        val d = PortadaParser.parse(
+            listOf(
+                "UNIVERSIDAD NACIONAL AUTÓNOMA DE NICARAGUA", "UNAN-MANAGUA",
+                "Cálculo integral para ingeniería", "ISBN: 978-999-24-000-0",
+                "Autor: Juan Pérez", "Segunda edición", "Editorial: Universitaria", "Managua, 2023"
+            )
+        )
+        assertEquals("Libro", d.categoria)
+        assertEquals("Cálculo integral para ingeniería", d.titulo)
+        assertEquals("978-999-24-000-0", d.camposExtra["ISBN"])
+        assertEquals("Universitaria", d.camposExtra["Editorial"])
+        assertEquals(listOf("Juan Pérez"), d.autores)
+        assertEquals("Managua, 2023", d.fechaLugar)
+    }
+
+    @Test
+    fun tituloNombreDelProyectoEnLaMismaLinea() {
+        val d = PortadaParser.parse(
+            listOf(
+                "UNIVERSIDAD NACIONAL AUTÓNOMA DE NICARAGUA", "UNAN-MANAGUA",
+                "Nombre del proyecto: Rediseño de la red de datos", "Autor: Luis Mora"
+            )
+        )
+        assertEquals("Rediseño de la red de datos", d.titulo)
+    }
+
+    @Test
+    fun camposExtraDuplicadosSeUnen() {
+        val d = PortadaParser.parse(
+            listOf(
+                "UNIVERSIDAD NACIONAL AUTÓNOMA DE NICARAGUA", "UNAN-MANAGUA",
+                "Componente: Optativa", "Componente: Obligatoria", "Asignatura: Física", "Autor: Ana Ruiz"
+            )
+        )
+        assertEquals("Optativa; Obligatoria", d.camposExtra["Componente"])
+        assertEquals("Física", d.camposExtra["Asignatura"])
+    }
+
+    @Test
+    fun etiquetaDeTutorEnMayusculasSeNormaliza() {
+        val d = PortadaParser.parse(
+            listOf(
+                "UNIVERSIDAD NACIONAL AUTÓNOMA DE NICARAGUA", "UNAN-MANAGUA",
+                "TUTOR: Msc. Pedro Ramírez", "Autor: Ana Ruiz"
+            )
+        )
+        assertEquals(listOf("Tutor: Msc. Pedro Ramírez"), d.tutores)
+    }
+
+    @Test
+    fun discoConContenidoYDireccion() {
+        val d = PortadaParser.parse(
+            listOf(
+                "DISCO COMPACTO", "La música tradicional de Nicaragua",
+                "Contenido: 12 pistas", "Dirección: Ana Ruiz"
+            )
+        )
+        assertEquals("Disco/CD", d.categoria)
+        assertEquals("La música tradicional de Nicaragua", d.titulo)
+        assertEquals("12 pistas", d.camposExtra["Contenido"])
+        assertEquals(listOf("Dirección: Ana Ruiz"), d.tutores)
+    }
 }
